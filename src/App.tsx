@@ -1,8 +1,6 @@
-import { useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useRef, useState, useEffect } from 'react'
 import { createGoogleTokenClient, type GoogleTokenClient } from './googleAuth'
-import { fetchFormResponses } from './googleFormsApi'
-import type { ImportResult } from './types'
+import type { UserSession } from './types'
 import { Button } from './components/ui/button'
 import {
   Card,
@@ -11,73 +9,44 @@ import {
   CardHeader,
   CardTitle,
 } from './components/ui/card'
+// Import des fonctions de gestion de session
+import {
+  createSession,
+  getSession,
+  clearSession,
+} from './sessionManager'
+import Dashboard from './dashboard'
+import {useNavigate} from "react-router-dom";
+import {createNewUser} from "./userManager";
 
 function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState<string | null>(null)
+  // État pour stocker la session utilisateur actuelle
+  const [userSession, setUserSession] = useState<UserSession | null>(null)
   const tokenClientRef = useRef<GoogleTokenClient | null>(null)
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
-  const formId = import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-  const importEndpoint = import.meta.env.VITE_IMPORT_ENDPOINT as string | undefined
+
+  const navigate = useNavigate();
+  const handleRedirectToDash = () => {
+    navigate('/dashboard')
+  }
+
+  // Effet pour charger la session au montage du composant
+  useEffect(() => {
+    const existingSession = getSession()
+    if (existingSession) {
+      // Si une session existe, restaurer le token d'accès et la session
+      setAccessToken(existingSession.accessToken)
+      setUserSession(existingSession)
+    }
+  }, [])
 
   const scopes = [
     'https://www.googleapis.com/auth/forms.responses.readonly',
     'https://www.googleapis.com/auth/forms.body.readonly',
   ].join(' ')
-
-  const previewMutation = useMutation({
-    mutationFn: async () => {
-      if (!accessToken) {
-        throw new Error('Connect to Google first.')
-      }
-      if (!formId) {
-        throw new Error('Missing VITE_GOOGLE_FORM_ID.')
-      }
-      return fetchFormResponses(formId, accessToken)
-    },
-  })
-
-  const importMutation = useMutation<ImportResult, Error>({
-    mutationFn: async () => {
-      if (!accessToken) {
-        throw new Error('Connect to Google first.')
-      }
-      if (!formId) {
-        throw new Error('Missing VITE_GOOGLE_FORM_ID.')
-      }
-      if (!supabaseAnonKey) {
-        throw new Error('Missing VITE_SUPABASE_ANON_KEY.')
-      }
-      if (!importEndpoint) {
-        throw new Error('Missing VITE_IMPORT_ENDPOINT.')
-      }
-
-      const response = await fetch(importEndpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
-          formId,
-          googleAccessToken: accessToken,
-        }),
-      })
-
-      if (!response.ok) {
-        const text = await response.text()
-        throw new Error(
-          `Import failed: ${response.status} ${response.statusText}${
-            text ? ` - ${text}` : ''
-          }`,
-        )
-      }
-
-      return (await response.json()) as ImportResult
-    },
-  })
 
   const handleGoogleLogin = () => {
     setTokenError(null)
@@ -85,21 +54,45 @@ function App() {
       setTokenError('Missing VITE_GOOGLE_CLIENT_ID.')
       return
     }
-
+// Lance le flux d'authentification Google
     try {
       if (!tokenClientRef.current) {
         tokenClientRef.current = createGoogleTokenClient({
           clientId: googleClientId,
           scope: scopes,
-          callback: (response) => {
+          callback: async (response) => {
+            // Traitement de la réponse de Google
+            // Gère les erreurs et stocke l'accessToken
+            
+            // Si une erreur est rencontrée, nettoyer l'accessToken
             if (response.error) {
               setTokenError(response.error_description || response.error)
               setAccessToken(null)
+              // Nettoyer la session en cas d'erreur
+              setUserSession(null)
+              clearSession()
               return
             }
+            // Si l'authentification est réussie, stocker l'accessToken
             if (response.access_token) {
-              setTokenError(null)
-              setAccessToken(response.access_token)
+              // vérification en BDD et création de session
+              if (!response.email) {
+                console.log('Google token response:', response.email)
+                setTokenError('Email not found in Google token response.')
+                return
+              }
+              const userResult = await createNewUser(response.email)
+              if (userResult.success === true) {
+                setTokenError(null)
+                setAccessToken(response.access_token)
+                // Créer une session avec l'accessToken après connexion réussie
+                // redirect to dashboard
+                const newSession = createSession(response.access_token)
+                setUserSession(newSession)
+                handleRedirectToDash()
+              }
+              
+
             }
           },
         })
@@ -111,6 +104,15 @@ function App() {
         error instanceof Error ? error.message : 'Google auth failed.',
       )
     }
+  }
+
+  const handleGoogleLogout = () => {
+    // Réinitialiser tous les états liés à la session
+    setAccessToken(null)
+    setUserSession(null)
+    setTokenError(null)
+    // Supprimer la session du localStorage
+    clearSession()
   }
 
   return (
@@ -128,15 +130,25 @@ function App() {
               Authentifiez-vous avec Google, prévisualisez les réponses du
               formulaire, puis importez-les dans Supabase via l'Edge Function.
             </p>
+            {/* Affichage des informations de session si connecté */}
+            {userSession && (
+              <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs">
+                <p className="text-emerald-700">
+                  <strong>Session active:</strong> {userSession.sessionId.substring(0, 20)}...
+                </p>
+              </div>
+            )}
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-2 text-sm font-medium">
-            <span
-              className={
-                accessToken ? 'text-emerald-300' : 'text-muted-foreground'
-              }
-            >
-              {accessToken ? '✅ Google connecté' : 'Google non connecté'}
-            </span>
+          <div className="inline-flex flex-col gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-2 text-sm font-medium">
+              <span
+                className={
+                  accessToken ? 'text-emerald-300' : 'text-muted-foreground'
+                }
+              >
+                {accessToken ? '✅ Google connecté' : 'Google non connecté'}
+              </span>
+            </div>
           </div>
         </header>
 
@@ -160,71 +172,13 @@ function App() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-card/70">
-          <CardHeader>
-            <CardTitle>Import & Prévisualisation</CardTitle>
-            <CardDescription>
-              Prévisualisez les réponses brutes puis lancez l’import Supabase.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-wrap gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => previewMutation.mutate()}
-                disabled={previewMutation.isPending}
-              >
-                {previewMutation.isPending
-                  ? 'Chargement...'
-                  : 'Prévisualiser réponses'}
-              </Button>
-              <Button
-                type="button"
-                onClick={() => importMutation.mutate()}
-                disabled={importMutation.isPending}
-              >
-                {importMutation.isPending
-                  ? 'Import en cours...'
-                  : 'Importer dans Supabase'}
-              </Button>
-            </div>
-
-            {previewMutation.isError ? (
-              <p className="text-sm text-destructive">
-                {previewMutation.error.message}
-              </p>
-            ) : null}
-            {importMutation.isError ? (
-              <p className="text-sm text-destructive">
-                {importMutation.error.message}
-              </p>
-            ) : null}
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                <h2 className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Prévisualisation Google Forms
-                </h2>
-                <pre className="mt-3 max-h-96 overflow-auto text-xs leading-relaxed">
-                  {previewMutation.data
-                    ? JSON.stringify(previewMutation.data, null, 2)
-                    : 'Aucune réponse pour le moment.'}
-                </pre>
-              </div>
-              <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                <h2 className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Résultat import Supabase
-                </h2>
-                <pre className="mt-3 max-h-96 overflow-auto text-xs leading-relaxed">
-                  {importMutation.data
-                    ? JSON.stringify(importMutation.data, null, 2)
-                    : 'Aucun import lancé.'}
-                </pre>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {accessToken && (
+          <Dashboard
+            accessToken={accessToken}
+            userSession={userSession}
+            onLogout={handleGoogleLogout}
+          />
+        )}
       </div>
     </div>
   )

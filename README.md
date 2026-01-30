@@ -33,3 +33,17 @@ VITE_IMPORT_ENDPOINT=
 - "Importer dans Supabase" calls your Edge Function with `{ formId, googleAccessToken }`.
 
 No sensitive keys are embedded in the frontend; only `VITE_SUPABASE_ANON_KEY` is used.
+
+## Les fonctionalités ajoutées et précision
+
+- Système de session qui s'expire au bout de 1h avec bouton "se déconnecter"
+- des logs pour savoir qui c'est connecté avec quel adresse
+
+## Les fichiers modifié ou créé
+
+- App.tsx (authentification Google uniquement)
+- dashboard.tsx (création - import & prévisualisation + déconnection)
+- sessionManager.ts
+- types.ts
+
+Les lignes modifié ou ajoutées sont commenté 
