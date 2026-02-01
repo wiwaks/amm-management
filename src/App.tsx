@@ -1,7 +1,11 @@
-import { useRef, useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createGoogleTokenClient, type GoogleTokenClient } from './googleAuth'
+import { createNewUser } from './userManager'
 import type { UserSession } from './types'
 import { Button } from './components/ui/button'
+import { Badge } from './components/ui/badge'
+import { Logo } from './components/Logo'
 import {
   Card,
   CardContent,
@@ -9,43 +13,57 @@ import {
   CardHeader,
   CardTitle,
 } from './components/ui/card'
-// Import des fonctions de gestion de session
-import {
-  createSession,
-  getSession,
-  clearSession,
-} from './sessionManager'
-import Dashboard from './dashboard'
-import {useNavigate} from "react-router-dom";
-import {createNewUser} from "./userManager";
+import { clearSession, createSession, getSession } from './sessionManager'
+
+const HIGHLIGHTS = [
+  'Google Identity Services',
+  'Import en 1 clic',
+  'Sessions sécurisées',
+  'Traçabilité complète',
+]
+
+const STEPS = [
+  {
+    title: 'Connexion Google',
+    description: 'Authentification rapide et sécurisée.',
+  },
+  {
+    title: 'Création de compte',
+    description: 'Enregistrement automatique dans Supabase.',
+  },
+  {
+    title: 'Import guidé',
+    description: 'Prévisualisez puis importez les réponses.',
+  },
+]
 
 function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState<string | null>(null)
-  // État pour stocker la session utilisateur actuelle
   const [userSession, setUserSession] = useState<UserSession | null>(null)
   const tokenClientRef = useRef<GoogleTokenClient | null>(null)
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as
+    | string
+    | undefined
 
-  const navigate = useNavigate();
-  const handleRedirectToDash = () => {
-    navigate('/dashboard')
-  }
+  const navigate = useNavigate()
 
-  // Effet pour charger la session au montage du composant
   useEffect(() => {
     const existingSession = getSession()
     if (existingSession) {
-      // Si une session existe, restaurer le token d'accès et la session
       setAccessToken(existingSession.accessToken)
       setUserSession(existingSession)
+      navigate('/dashboard', { replace: true })
     }
-  }, [])
+  }, [navigate])
 
   const scopes = [
     'https://www.googleapis.com/auth/forms.responses.readonly',
     'https://www.googleapis.com/auth/forms.body.readonly',
+    'openid',
+    'email',
+    'profile',
   ].join(' ')
 
   const handleGoogleLogin = () => {
@@ -54,45 +72,38 @@ function App() {
       setTokenError('Missing VITE_GOOGLE_CLIENT_ID.')
       return
     }
-// Lance le flux d'authentification Google
+
     try {
       if (!tokenClientRef.current) {
         tokenClientRef.current = createGoogleTokenClient({
           clientId: googleClientId,
           scope: scopes,
           callback: async (response) => {
-            // Traitement de la réponse de Google
-            // Gère les erreurs et stocke l'accessToken
-            
-            // Si une erreur est rencontrée, nettoyer l'accessToken
             if (response.error) {
               setTokenError(response.error_description || response.error)
               setAccessToken(null)
-              // Nettoyer la session en cas d'erreur
               setUserSession(null)
               clearSession()
               return
             }
-            // Si l'authentification est réussie, stocker l'accessToken
+
             if (response.access_token) {
-              // vérification en BDD et création de session
               if (!response.email) {
-                console.log('Google token response:', response.email)
                 setTokenError('Email not found in Google token response.')
                 return
               }
-              const userResult = await createNewUser(response.email)
-              if (userResult.success === true) {
-                setTokenError(null)
-                setAccessToken(response.access_token)
-                // Créer une session avec l'accessToken après connexion réussie
-                // redirect to dashboard
-                const newSession = createSession(response.access_token)
-                setUserSession(newSession)
-                handleRedirectToDash()
-              }
-              
 
+              const userResult = await createNewUser(response.email)
+              if (userResult.success !== true) {
+                setTokenError(userResult.message || 'Failed to create user.')
+                return
+              }
+
+              setTokenError(null)
+              setAccessToken(response.access_token)
+              const newSession = createSession(response.access_token)
+              setUserSession(newSession)
+              navigate('/dashboard')
             }
           },
         })
@@ -106,79 +117,167 @@ function App() {
     }
   }
 
-  const handleGoogleLogout = () => {
-    // Réinitialiser tous les états liés à la session
-    setAccessToken(null)
-    setUserSession(null)
-    setTokenError(null)
-    // Supprimer la session du localStorage
-    clearSession()
-  }
+  const sessionExpiresAt = userSession
+    ? new Date(userSession.expiresAt)
+    : null
+  const sessionExpiresLabel = sessionExpiresAt
+    ? sessionExpiresAt.toLocaleString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: 'short',
+      })
+    : null
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-12">
-        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-              amm-management
-            </p>
-            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
-              POC Import Google Form → Supabase (amm-management)
-            </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              Authentifiez-vous avec Google, prévisualisez les réponses du
-              formulaire, puis importez-les dans Supabase via l'Edge Function.
-            </p>
-            {/* Affichage des informations de session si connecté */}
-            {userSession && (
-              <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs">
-                <p className="text-emerald-700">
-                  <strong>Session active:</strong> {userSession.sessionId.substring(0, 20)}...
-                </p>
-              </div>
-            )}
-          </div>
-          <div className="inline-flex flex-col gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-2 text-sm font-medium">
-              <span
-                className={
-                  accessToken ? 'text-emerald-300' : 'text-muted-foreground'
-                }
-              >
-                {accessToken ? '✅ Google connecté' : 'Google non connecté'}
-              </span>
+    <div className="relative min-h-screen overflow-hidden">
+      <div className="pointer-events-none absolute -top-40 right-0 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 left-0 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
+
+      <div className="mx-auto w-full max-w-7xl px-6 py-12 lg:py-20">
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <Logo subtitle="Agence matrimoniale" />
+            <div className="hidden h-6 w-px bg-border/60 sm:block" />
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.4em] text-muted-foreground">
+              <Badge variant="outline" className="tracking-normal">
+                Back office
+              </Badge>
+              <span>Import</span>
             </div>
           </div>
+          <Badge variant={accessToken ? 'success' : 'outline'}>
+            {accessToken ? 'Connecté' : 'Non connecté'}
+          </Badge>
         </header>
 
-        <Card className="border-border/60 bg-card/70">
-          <CardHeader>
-            <CardTitle>Authentification Google</CardTitle>
-            <CardDescription>
-              Utilise Google Identity Services avec les scopes Forms requis.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 md:flex-row md:items-center">
-            <Button type="button" onClick={handleGoogleLogin}>
-              Se connecter à Google
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Scopes: forms.responses.readonly + forms.body.readonly
-            </span>
-            {tokenError ? (
-              <span className="text-sm text-destructive">{tokenError}</span>
-            ) : null}
-          </CardContent>
-        </Card>
+        <div className="mt-10 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+          <section className="space-y-8">
+            <div className="space-y-4">
+              <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
+                Importer les réponses
+              </p>
+              <h1 className="font-display text-4xl font-semibold leading-tight text-foreground md:text-5xl">
+                Un portail élégant pour{' '}
+                <span className="text-primary">vos données Google Forms</span>.
+              </h1>
+              <p className="max-w-xl text-sm text-muted-foreground md:text-base">
+                Authentifiez-vous, visualisez les réponses et lancez l’import
+                Supabase dans une interface pensée pour un usage back office
+                quotidien.
+              </p>
+            </div>
 
-        {accessToken && (
-          <Dashboard
-            accessToken={accessToken}
-            userSession={userSession}
-            onLogout={handleGoogleLogout}
-          />
-        )}
+            <div className="flex flex-wrap gap-2">
+              {HIGHLIGHTS.map((item) => (
+                <Badge key={item} variant="outline">
+                  {item}
+                </Badge>
+              ))}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {STEPS.map((step, index) => (
+                <Card key={step.title} className="border-border/60 bg-card/70">
+                  <CardHeader className="pb-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                      étape {index + 1}
+                    </p>
+                    <CardTitle className="text-base">{step.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">
+                    {step.description}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="border-border/60 bg-card/70">
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Sécurité et conformité
+                  </CardTitle>
+                  <CardDescription>
+                    Aucune clé sensible côté client.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+              <Card className="border-border/60 bg-card/70">
+                <CardHeader>
+                  <CardTitle className="text-base">Auditabilité</CardTitle>
+                  <CardDescription>
+                    Sessions loguées et import traçable.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          </section>
+
+          <Card className="border-border/60 bg-card/80 backdrop-blur">
+            <CardHeader>
+              <CardTitle className="font-display text-2xl">
+                Authentification
+              </CardTitle>
+              <CardDescription>
+                Connectez-vous pour accéder au back office.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                    Statut
+                  </span>
+                  <Badge variant={accessToken ? 'success' : 'outline'}>
+                    {accessToken ? 'Connecté' : 'Non connecté'}
+                  </Badge>
+                </div>
+                {userSession ? (
+                  <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                    <p>
+                      Session:{' '}
+                      <span className="text-foreground">
+                        {userSession.sessionId.slice(0, 20)}…
+                      </span>
+                    </p>
+                    {sessionExpiresLabel ? (
+                      <p>
+                        Expire le:{' '}
+                        <span className="text-foreground">
+                          {sessionExpiresLabel}
+                        </span>
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Aucun compte actif. Connectez-vous pour accéder à l’import.
+                  </p>
+                )}
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full"
+              >
+                Se connecter avec Google
+              </Button>
+
+              <div className="rounded-2xl border border-border/60 bg-card/60 p-4 text-xs text-muted-foreground">
+                Scopes: forms.responses.readonly · forms.body.readonly ·
+                profile · email
+              </div>
+
+              {tokenError ? (
+                <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-700">
+                  {tokenError}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import App from './App'
 import Dashboard from './dashboard'
 import { getSession, clearSession } from './sessionManager'
@@ -14,10 +14,9 @@ function DashboardWrapper() {
   // Récupère la session stockée
   const session = getSession() as UserSession | null
 
-  if (!session || !session.accessToken || session.expiresAt < Date.now().toString() || session == null) {
+  if (!session || !session.accessToken) {
     // Si pas de session, redirige vers la page d'accueil (login)
-    navigate('/')
-    return null
+    return <Navigate to="/" replace />
   }
   // Handler appelé depuis Dashboard pour déconnecter l'utilisateur.
   // Il efface la session côté client puis redirige vers la page d'accueil.

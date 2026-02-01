@@ -47,10 +47,16 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          '"Space Grotesk"',
+          '"Manrope"',
           'ui-sans-serif',
           'system-ui',
           'sans-serif',
+        ],
+        display: [
+          '"Cormorant Garamond"',
+          'ui-serif',
+          'Georgia',
+          'serif',
         ],
         mono: [
           '"JetBrains Mono"',
