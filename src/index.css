@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,26 +6,26 @@
 
 @layer base {
   :root {
-    --background: 230 34% 6%;
-    --foreground: 210 40% 98%;
-    --card: 230 30% 10%;
-    --card-foreground: 210 40% 98%;
-    --popover: 230 30% 10%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 32 95% 67%;
-    --primary-foreground: 26 25% 15%;
-    --secondary: 225 18% 18%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 225 18% 18%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 32 80% 60%;
-    --accent-foreground: 26 25% 15%;
-    --destructive: 0 72% 58%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 225 18% 22%;
-    --input: 225 18% 22%;
-    --ring: 32 95% 67%;
-    --radius: 1.1rem;
+    --background: 340 45% 97%;
+    --foreground: 338 25% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 338 25% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 338 25% 18%;
+    --primary: 338 65% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 336 35% 92%;
+    --secondary-foreground: 338 25% 20%;
+    --muted: 336 35% 94%;
+    --muted-foreground: 338 12% 40%;
+    --accent: 328 70% 56%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 336 24% 86%;
+    --input: 336 24% 86%;
+    --ring: 338 65% 52%;
+    --radius: 1.2rem;
   }
 
   * {
@@ -36,13 +36,20 @@
     @apply bg-background text-foreground font-sans antialiased;
     min-height: 100vh;
     background-image:
-      radial-gradient(circle at 10% 20%, rgba(255, 180, 110, 0.18), transparent 45%),
-      radial-gradient(circle at 80% 0%, rgba(92, 138, 255, 0.18), transparent 40%);
+      radial-gradient(circle at 12% 18%, rgba(236, 160, 190, 0.22), transparent 45%),
+      radial-gradient(circle at 82% 0%, rgba(214, 129, 175, 0.18), transparent 40%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(248, 235, 242, 0.85));
   }
 
   pre {
     @apply font-mono;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
   }
 }
