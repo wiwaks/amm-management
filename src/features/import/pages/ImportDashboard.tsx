@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { fetchFormResponses } from './googleFormsApi'
-import type { ImportResult, UserSession } from './types'
-import { Button } from './components/ui/button'
-import { Badge } from './components/ui/badge'
-import { Toast } from './components/ui/toast'
-import { Logo } from './components/Logo'
+import { fetchFormResponses } from '../../../services/google/forms'
+import type { ImportResult, UserSession } from '../../../shared/types'
+import { Button } from '../../../shared/components/ui/button'
+import { Badge } from '../../../shared/components/ui/badge'
+import { Toast } from '../../../shared/components/ui/toast'
+import { Logo } from '../../../shared/components/Logo'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from './components/ui/card'
+} from '../../../shared/components/ui/card'
 import {
   Table,
   TableBody,
@@ -20,7 +20,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from './components/ui/table'
+} from '../../../shared/components/ui/table'
 
 type GoogleFormsResponse = {
   responseId?: string
@@ -106,7 +106,7 @@ function summarizeAnswers(answers?: Record<string, unknown>) {
   }
 }
 
-function Dashboard({ accessToken, userSession, onLogout }: DashboardProps) {
+function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
   const formId = import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined
   const supabaseAnonKey = import.meta.env
     .VITE_SUPABASE_ANON_KEY as string | undefined
@@ -570,4 +570,4 @@ function Dashboard({ accessToken, userSession, onLogout }: DashboardProps) {
   )
 }
 
-export default Dashboard
+export default ImportDashboard

@@ -3,7 +3,7 @@
  * Gère le stockage et la récupération des sessions utilisateur après connexion Google
  */
 
-import type { UserSession } from './types'
+import type { UserSession } from '../types'
 
 // Clé de stockage pour la session dans le localStorage
 const SESSION_STORAGE_KEY = 'amm_user_session'

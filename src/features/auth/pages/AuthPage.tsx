@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createGoogleTokenClient, type GoogleTokenClient } from './googleAuth'
-import { createNewUser } from './userManager'
-import type { UserSession } from './types'
-import { Button } from './components/ui/button'
-import { Badge } from './components/ui/badge'
-import { Logo } from './components/Logo'
+import { createGoogleTokenClient, type GoogleTokenClient } from '../../../services/google/auth'
+import { createNewUser } from '../../../services/supabase/users'
+import type { UserSession } from '../../../shared/types'
+import { Button } from '../../../shared/components/ui/button'
+import { Badge } from '../../../shared/components/ui/badge'
+import { Logo } from '../../../shared/components/Logo'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from './components/ui/card'
-import { clearSession, createSession, getSession } from './sessionManager'
+} from '../../../shared/components/ui/card'
+import { clearSession, createSession, getSession } from '../../../shared/auth/sessionManager'
 
 const HIGHLIGHTS = [
   'Google Identity Services',
@@ -37,7 +37,7 @@ const STEPS = [
   },
 ]
 
-function App() {
+function AuthPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [userSession, setUserSession] = useState<UserSession | null>(null)
@@ -283,4 +283,4 @@ function App() {
   )
 }
 
-export default App
+export default AuthPage
