@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { fetchFormResponses } from '../../../services/google/forms'
-import type { ImportResult, UserSession } from '../../../shared/types'
+import type { UserSession } from '../../../shared/types'
 import { Button } from '../../../shared/components/ui/button'
 import { Badge } from '../../../shared/components/ui/badge'
 import { Toast } from '../../../shared/components/ui/toast'
@@ -21,23 +21,35 @@ import {
   TableHeader,
   TableRow,
 } from '../../../shared/components/ui/table'
+//import { Form } from 'react-router-dom'
+
+type ToastMessage = {
+  title: string
+  description?: string
+  variant?: 'info' | 'success' | 'error'
+}
 
 type GoogleFormsResponse = {
   responseId?: string
   createTime?: string
   lastSubmittedTime?: string
+  respondentEmail?: string
+  name?: Record<
+    string,
+    {
+      textAnswers?: {
+        answers?: Array<{
+          value?: string
+        }>
+      }
+    }
+  >
   answers?: Record<string, unknown>
 }
 
 type GoogleFormsPreview = {
   responses?: GoogleFormsResponse[]
   totalResponses?: number
-}
-
-type ToastMessage = {
-  title: string
-  description?: string
-  variant?: 'info' | 'success' | 'error'
 }
 
 interface DashboardProps {
@@ -48,13 +60,15 @@ interface DashboardProps {
 
 // Navigation items for the sidebar and mobile nav
 const NAV_ITEMS = [
-  { label: 'Aperçu', active: false, route: null },
+  { label: 'Aperçu', active: false, route: null},
   { label: 'Import', active: true, route: '/dashboard' },
   { label: 'Historique', active: false, route: null },
   { label: 'Recherches', active: true, route: '/recherche' },
-  { label: 'Clients', active: false, route: null },
-  { label: 'Paramètres', active: false, route: null },
+  { label: 'Clients', active: false, route: null},
+  { label: 'Paramètres', active: false, route: null},
 ]
+
+
 
 function formatDate(value?: string) {
   if (!value) return '—'
@@ -67,7 +81,7 @@ function formatDate(value?: string) {
     month: 'short',
   })
 }
-
+// Summarizes the answers object to get count and preview text i must have to take the name and the create at
 function summarizeAnswers(answers?: Record<string, unknown>) {
   if (!answers) return { count: 0, preview: '—' }
   const entries = Object.values(answers)
@@ -108,12 +122,13 @@ function summarizeAnswers(answers?: Record<string, unknown>) {
   }
 }
 
-function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
-  const formId = import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined
-  const supabaseAnonKey = import.meta.env
-    .VITE_SUPABASE_ANON_KEY as string | undefined
-  const importEndpoint = import.meta.env
-    .VITE_IMPORT_ENDPOINT as string | undefined
+function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
+    const formId = import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined
+    const [select1, setSelect1] = useState("");
+    const [select2, setSelect2] = useState("");
+    const [select3, setSelect3] = useState("");
+    const [select4, setSelect4] = useState("");
+
   const [toast, setToast] = useState<ToastMessage | null>(null)
 
   const previewMutation = useMutation({
@@ -125,44 +140,10 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
     },
   })
 
-  const importMutation = useMutation<ImportResult, Error>({
-    mutationFn: async () => {
-      if (!formId) {
-        throw new Error('Missing VITE_GOOGLE_FORM_ID.')
-      }
-      if (!supabaseAnonKey) {
-        throw new Error('Missing VITE_SUPABASE_ANON_KEY.')
-      }
-      if (!importEndpoint) {
-        throw new Error('Missing VITE_IMPORT_ENDPOINT.')
-      }
+  //bar de recherche beta
+  const [searchTerm, setSearchTerm] = useState("");
 
-      const response = await fetch(importEndpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
-          formId,
-          googleAccessToken: accessToken,
-          sessionId: userSession?.sessionId,
-        }),
-      })
-
-      if (!response.ok) {
-        const text = await response.text()
-        throw new Error(
-          `Import failed: ${response.status} ${response.statusText}${
-            text ? ` - ${text}` : ''
-          }`,
-        )
-      }
-
-      return (await response.json()) as ImportResult
-    },
-  })
-
+ 
   useEffect(() => {
     if (!toast) return
     const timer = setTimeout(() => setToast(null), 4200)
@@ -190,37 +171,95 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
     }
   }, [previewMutation.isError, previewMutation.error])
 
-  useEffect(() => {
-    if (!importMutation.isSuccess || !importMutation.data) return
-    const { total, imported, updated, skipped } = importMutation.data
-    const totalLabel = total ?? imported ?? 0
-    setToast({
-      title: 'Import terminé',
-      description: `Importé ${imported ?? 0} / ${totalLabel} · Modifiés ${
-        updated ?? 0
-      } · Ignorés ${skipped ?? 0}`,
-      variant: 'success',
-    })
-  }, [importMutation.isSuccess, importMutation.data])
-
-  useEffect(() => {
-    if (importMutation.isError && importMutation.error) {
-      setToast({
-        title: 'Erreur d’import',
-        description: importMutation.error.message,
-        variant: 'error',
-      })
-    }
-  }, [importMutation.isError, importMutation.error])
 
   const previewData = previewMutation.data as GoogleFormsPreview | undefined
   const responses = previewData?.responses ?? []
-  const previewRows = useMemo(() => responses.slice(0, 6), [responses])
   const totalResponses = previewData?.totalResponses ?? responses.length
 
-  const importStats = importMutation.data
   const sessionExpiry = userSession ? formatDate(userSession.expiresAt) : null
+  // ---- UTILITAIRE POUR LIRE UNE RÉPONSE PAR QUESTION ID ----
+const getAnswer = (answers: Record<string, any> | undefined, questionId: string) => {
+  return answers?.[questionId]?.textAnswers?.answers?.[0]?.value ?? "";
+};
 
+// ---- UTILITAIRE POUR RÉCUPÉRER L’ÂGE (question 13f5679a) ----
+const getAge = (answers: Record<string, any> | undefined) => {
+  const val = getAnswer(answers, "13f5679a"); // TON ID âge
+  const n = Number(val);
+  return Number.isNaN(n) ? null : n;
+};
+
+//fonction de bar de recherche beta
+// ---- CHERCHE DANS TOUTES LES RÉPONSES ----
+const matchesSearch = (
+  answers: Record<string, any> | undefined,
+  term: string
+) => {
+  if (!term) return true; // si champ vide → tout passe
+
+  const lowerTerm = term.toLowerCase();
+
+  if (!answers) return false;
+
+  // On parcourt TOUTES les questions du formulaire
+  for (const key of Object.keys(answers)) {
+    const entry = answers[key];
+
+    const textAnswers = entry?.textAnswers?.answers;
+    if (Array.isArray(textAnswers)) {
+      for (const a of textAnswers) {
+        if (a?.value?.toLowerCase().includes(lowerTerm)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+};
+//-------------------------------------------------
+
+// ---- VERSION FILTRÉE DE TON TABLEAU ----
+const previewRows = useMemo(() => {
+  return responses
+    .filter((r: any) => {
+      const answers = r.answers as Record<string, any>;
+
+      // === EXEMPLES DE 3 FILTRES (tu peux changer les IDs plus tard) ===
+      const sexe = getAnswer(answers, "0ee9528d");      // Une femme / Un homme
+      const voulEnfant = getAnswer(answers, "4a93faa4");     // oui / non / ça se discute
+      const age = getAge(answers);                      // nombre
+      const pratiquant = getAnswer(answers, "32cdfe5a"); // oui / non
+
+      // ---- FILTRE 1 : sexe ----
+      const okSexe =
+        !select1 || sexe.includes(select1);
+
+      // ---- FILTRE 2 : Vouloir des enfant ----
+      const okvoulEnfant =
+        !select2 || voulEnfant.includes(select2);
+
+      // ---- FILTRE 3 : TRANCHES D’ÂGE ----
+      let okAge = true;
+      if (select3 && age !== null) {
+        if (select3 === "18-25") okAge = age >= 18 && age <= 25;
+        if (select3 === "26-35") okAge = age >= 26 && age <= 35;
+        if (select3 === "36-50") okAge = age >= 36 && age <= 50;
+        if (select3 === "50+") okAge = age > 50;
+      }
+
+      // ---- FILTRE 4 : Pratiquant ----
+        const okPratiquant =
+        !select4 || pratiquant.includes(select4);
+
+      // ---- FILTRE 5 : BARRE DE RECHERCHE ----
+        const okSearch = matchesSearch(answers, searchTerm);
+
+
+      return okSexe && okvoulEnfant && okAge && okPratiquant && okSearch;
+    })
+}, [responses, select1, select2, select3, select4]);
+onload=() => previewMutation.mutate()
   return (
     <div className="min-h-screen">
       <div className="mx-auto flex w-full max-w-7xl gap-6 px-6 py-10">
@@ -229,7 +268,7 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
             <div className="space-y-3">
               <Logo subtitle="Back office" />
               <p className="text-sm text-muted-foreground">
-                Centralisez vos imports Google Forms en un seul endroit.
+                Visualizez toute les réponses au formulaire.
               </p>
             </div>
 
@@ -259,7 +298,7 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                 Support
               </p>
               <p className="text-muted-foreground">
-                Besoin d’aide sur un import ?
+                Besoin d’aide sur comment filtré vos réponses ?
               </p>
               <Button variant="secondary" size="sm" className="w-full">
                 Contacter l’équipe
@@ -275,14 +314,14 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                 <Logo subtitle="Back office" />
               </div>
               <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-                Rubrique import
+                Rubrique Recherche
               </p>
               <h1 className="font-display text-3xl font-semibold md:text-4xl">
-                Prévisualisation & Import
+                Filtrez et analysez les réponses
               </h1>
               <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-                Suivez les réponses, contrôlez le format, puis lancez l’import
-                Supabase en toute sérénité.
+                Filtrez les réponses de votre formulaire Google Forms selon
+                différents critères pour mieux analyser vos données.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -332,21 +371,6 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
             </Card>
             <Card className="border-border/60 bg-card/70">
               <CardHeader>
-                <CardTitle className="text-base">Edge Function</CardTitle>
-                <CardDescription>Endpoint d’import</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                <p className="truncate">
-                  {importEndpoint ? (
-                    <span className="text-foreground">{importEndpoint}</span>
-                  ) : (
-                    'Non configuré'
-                  )}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/60 bg-card/70">
-              <CardHeader>
                 <CardTitle className="text-base">Statut</CardTitle>
                 <CardDescription>Authentification</CardDescription>
               </CardHeader>
@@ -359,19 +383,13 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
             </Card>
           </div>
 
-          {importMutation.isSuccess ? (
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700">
-              Import effectué avec succès. Résumé ci-dessous.
-            </div>
-          ) : null}
-
           <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
             <Card className="border-border/60 bg-card/80">
               <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <CardTitle>Prévisualisation des réponses</CardTitle>
+                  <CardTitle>Visualisation des réponses</CardTitle>
                   <CardDescription>
-                    Table des dernières réponses Google Forms.
+                    Tableau des réponses Google Forms.
                   </CardDescription>
                 </div>
                 <Badge variant={previewMutation.isSuccess ? 'success' : 'outline'}>
@@ -380,18 +398,71 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                     : 'En attente'}
                 </Badge>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 items-center">
                 <div className="flex flex-wrap gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => previewMutation.mutate()}
-                    disabled={previewMutation.isPending}
-                  >
-                    {previewMutation.isPending
-                      ? 'Chargement...'
-                      : 'Prévisualiser'}
-                  </Button>
+                    <div className="flex flex-wrap gap-3 items-center">
+                        <div>
+                            <h5>Le sexe</h5>
+                            <select
+                                className="border rounded px-2 py-1"
+                                value={select1}
+                                onChange={e => setSelect1(e.target.value)}
+                                title='Filtre1'
+                            >
+                                <option value=""> - </option>
+                                <option value="Un homme">Un homme</option>
+                                <option value="Une femme">Une femme</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <h5>Veut des enfants</h5>
+                            <select
+                                className="border rounded px-2 py-1"
+                                value={select2}
+                                onChange={e => setSelect2(e.target.value)}
+                                title='Filtre2'
+                            >
+                                <option value=""> - </option>
+                                <option value="Oui">Oui</option>
+                                <option value="Non">Non</option>
+                                <option value="Ça se discute">Ça se discute</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <h5>Tranche d'âge</h5>
+                            <select
+                                className="border rounded px-2 py-1"
+                                value={select3}
+                                onChange={e => setSelect3(e.target.value)}
+                                title='Filtre3'
+                            >
+                                <option value=""> - </option>
+                                <option value="18-25">18-25</option>
+                                <option value="26-35">26-35</option>
+                                <option value="36-50">36-50</option>
+                                <option value="50+">50+</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <h5>Pratiquant</h5>
+                            <select
+                                className="border rounded px-2 py-1"
+                                value={select4}
+                                onChange={e => setSelect4(e.target.value)}
+                                title='Filtre4'
+                            >
+                                <option value=""> - </option>
+                                <option value="Pratiquant">Pratiquant</option>
+                                <option value="Non pratiquant">Non Pratiquant</option>
+                            </select>
+                        </div>
+                        </div>
+                
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -402,13 +473,39 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                   </Button>
                 </div>
 
+                <div className="w-full mb-4 flex flex-wrap gap-3">
+                  <input
+                    type="search"
+                    placeholder="Rechercher dans toutes les réponses..."
+                    className="w-full border rounded px-3 py-2"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    title='Recherche'
+                    disabled={previewMutation.isPending}
+                    maxLength={100}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => previewMutation.mutate()}
+                    disabled={previewMutation.isPending}
+                  >
+                    Valider
+                  </Button>
+                </div>
+                  <p className="text-xs text-muted-foreground">Pour rechercher, vous devez valider la recherche après avoir entré un terme de recherche. Si vous ne souhaitez pas effectuer de recherche, laissez le champ vide et valider.</p>
+
+
                 <div className="rounded-2xl border border-border/60 bg-muted/20">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Response ID</TableHead>
                         <TableHead>Soumis</TableHead>
-                        <TableHead>Réponses</TableHead>
+                        <TableHead>Nom</TableHead>
+                        <TableHead>Prenom</TableHead>
+                        <TableHead>Numéro de teléphone</TableHead>
+                        <TableHead>mail</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -436,12 +533,28 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                                 )}
                               </TableCell>
                               <TableCell>
-                                <div className="space-y-1">
-                                  <p className="text-sm">{summary.preview}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {summary.count} champs
-                                  </p>
-                                </div>
+                                {(() => {
+                                  const entry = (response.answers as Record<string, any>)?.['778b574a']
+                                  const vals = entry?.textAnswers?.answers?.map((a: any) => a.value).filter(Boolean)
+                                  return vals
+                                })()}
+                              </TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const entry = (response.answers as Record<string, any>)?.['184c859f']
+                                  const vals = entry?.textAnswers?.answers?.map((a: any) => a.value).filter(Boolean)
+                                  return vals
+                                })()}
+                              </TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const entry = (response.answers as Record<string, any>)?.['458e9ec2']
+                                  const vals = entry?.textAnswers?.answers?.map((a: any) => a.value).filter(Boolean)
+                                  return vals
+                                })()}
+                              </TableCell>
+                              <TableCell>
+                                {response.respondentEmail || '—'}
                               </TableCell>
                             </TableRow>
                           )
@@ -465,93 +578,19 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
             </Card>
 
             <div className="space-y-6">
-              <Card className="border-border/60 bg-card/80">
-                <CardHeader className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Import Supabase</CardTitle>
-                      <CardDescription>Résultat et métriques.</CardDescription>
-                    </div>
-                    <Badge
-                      variant={importMutation.isSuccess ? 'success' : 'outline'}
-                    >
-                      {importMutation.isSuccess ? 'Succès' : 'Prêt'}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Total
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.total ?? '—'}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Importés
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.imported ?? '—'}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Modifiés
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.updated ?? '—'}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Ignorés
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.skipped ?? '—'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="button"
-                    onClick={() => importMutation.mutate()}
-                    disabled={importMutation.isPending}
-                    className="w-full"
-                  >
-                    {importMutation.isPending
-                      ? 'Import en cours...'
-                      : 'Importer dans Supabase'}
-                  </Button>
-
-                  <details className="rounded-2xl border border-border/60 bg-card/60 px-4 py-3 text-sm">
-                    <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                      Voir le résultat brut
-                    </summary>
-                    <pre className="mt-3 max-h-72 overflow-auto text-xs leading-relaxed">
-                      {importMutation.data
-                        ? JSON.stringify(importMutation.data, null, 2)
-                        : 'Aucun import lancé.'}
-                    </pre>
-                  </details>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/60 bg-card/80">
-                <CardHeader>
-                  <CardTitle className="text-base">Derniers repères</CardTitle>
-                  <CardDescription>
-                    Notes internes pour l’équipe.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
-                  <p>• Vérifier le mapping des champs avant l’import.</p>
-                  <p>• Contrôler les doublons sur la table Supabase.</p>
-                  <p>• Mettre à jour le formulaire si besoin.</p>
-                </CardContent>
-              </Card>
+                <Card className="border-border/60 bg-card/80">
+                    <CardHeader>
+                    <CardTitle className="text-base">Derniers repères</CardTitle>
+                    <CardDescription>
+                        Notes internes pour l’équipe.
+                    </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm text-muted-foreground">
+                    <p>• Vérifier le mapping des champs avant l’import.</p>
+                    <p>• Contrôler les doublons sur la table Supabase.</p>
+                    <p>• Mettre à jour le formulaire si besoin.</p>
+                    </CardContent>
+                </Card>
             </div>
           </div>
         </main>
@@ -571,4 +610,4 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
   )
 }
 
-export default ImportDashboard
+export default RechercheDashboard
