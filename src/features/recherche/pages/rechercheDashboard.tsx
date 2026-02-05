@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { fetchFormResponses } from '../../../services/google/forms'
 import type { UserSession } from '../../../shared/types'
 import { Button } from '../../../shared/components/ui/button'
 import { Badge } from '../../../shared/components/ui/badge'
@@ -21,35 +20,30 @@ import {
   TableHeader,
   TableRow,
 } from '../../../shared/components/ui/table'
-//import { Form } from 'react-router-dom'
+import { DataTableToolbar } from '../../../shared/components/data-table/data-table-toolbar'
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  useReactTable,
+  type ColumnFiltersState,
+  type ColumnDef,
+} from '@tanstack/react-table'
+import {
+  fetchFormSubmissions,
+  type FormSubmission,
+} from '../../../services/supabase/formSubmissions'
+import {
+  fetchFormQuestionMap,
+  type FormQuestionMap,
+  upsertFormQuestionMap,
+} from '../../../services/supabase/formQuestionMap'
+import { fetchFormQuestionMap as fetchGoogleFormQuestionMap } from '../../../services/google/forms'
 
 type ToastMessage = {
   title: string
   description?: string
   variant?: 'info' | 'success' | 'error'
-}
-
-type GoogleFormsResponse = {
-  responseId?: string
-  createTime?: string
-  lastSubmittedTime?: string
-  respondentEmail?: string
-  name?: Record<
-    string,
-    {
-      textAnswers?: {
-        answers?: Array<{
-          value?: string
-        }>
-      }
-    }
-  >
-  answers?: Record<string, unknown>
-}
-
-type GoogleFormsPreview = {
-  responses?: GoogleFormsResponse[]
-  totalResponses?: number
 }
 
 interface DashboardProps {
@@ -58,17 +52,14 @@ interface DashboardProps {
   onLogout: () => void
 }
 
-// Navigation items for the sidebar and mobile nav
 const NAV_ITEMS = [
-  { label: 'Aperçu', active: false, route: null},
-  { label: 'Import', active: true, route: '/dashboard' },
+  { label: 'Aperçu', active: false, route: null },
+  { label: 'Import', active: false, route: '/dashboard' },
   { label: 'Historique', active: false, route: null },
-  { label: 'Recherches', active: true, route: '/recherche' },
-  { label: 'Clients', active: false, route: null},
-  { label: 'Paramètres', active: false, route: null},
+  { label: 'Recherche', active: true, route: '/recherche' },
+  { label: 'Clients', active: false, route: null },
+  { label: 'Paramètres', active: false, route: null },
 ]
-
-
 
 function formatDate(value?: string) {
   if (!value) return '—'
@@ -81,69 +72,56 @@ function formatDate(value?: string) {
     month: 'short',
   })
 }
-// Summarizes the answers object to get count and preview text i must have to take the name and the create at
-function summarizeAnswers(answers?: Record<string, unknown>) {
-  if (!answers) return { count: 0, preview: '—' }
-  const entries = Object.values(answers)
-  const values: string[] = []
 
-  for (const entry of entries) {
-    if (!entry || typeof entry !== 'object') continue
-    const record = entry as Record<string, unknown>
-    const textAnswers = record.textAnswers as
-      | { answers?: Array<{ value?: string }> }
-      | undefined
-    const fileAnswers = record.fileUploadAnswers as
-      | { answers?: Array<{ fileId?: string; fileName?: string }> }
-      | undefined
+function getAnswerValuesForQuestion(rawJson: Record<string, unknown>, questionId: string) {
+  const answers = (rawJson.answers ?? {}) as Record<string, unknown>
+  const record = answers[questionId] as Record<string, unknown> | undefined
+  const textAnswers = record?.textAnswers as
+    | { answers?: Array<{ value?: string }> }
+    | undefined
 
-    if (textAnswers?.answers?.length) {
-      for (const answer of textAnswers.answers) {
-        if (answer?.value) values.push(answer.value)
-      }
-    } else if (fileAnswers?.answers?.length) {
-      for (const answer of fileAnswers.answers) {
-        if (answer?.fileName || answer?.fileId) {
-          values.push(answer.fileName || answer.fileId || '')
-        }
-      }
-    }
-  }
-
-  const previewValues = values.filter(Boolean)
-  const preview =
-    previewValues.length === 0
-      ? `${Object.keys(answers).length} champs`
-      : previewValues.slice(0, 2).join(' • ')
-
-  return {
-    count: Object.keys(answers).length,
-    preview,
-  }
+  if (!textAnswers?.answers?.length) return []
+  return textAnswers.answers
+    .map((answer) => answer?.value)
+    .filter((value): value is string => Boolean(value))
 }
 
 function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
-    const formId = import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined
-    const [select1, setSelect1] = useState("");
-    const [select2, setSelect2] = useState("");
-    const [select3, setSelect3] = useState("");
-    const [select4, setSelect4] = useState("");
-
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [hasSearched, setHasSearched] = useState(false)
+  const [questionMap, setQuestionMap] = useState<FormQuestionMap[]>([])
+  const [mapError, setMapError] = useState<string | null>(null)
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnFilterId, setColumnFilterId] = useState('last_name')
+  const [columnFilterValue, setColumnFilterValue] = useState('')
+  const [globalFilter, setGlobalFilter] = useState('')
   const [toast, setToast] = useState<ToastMessage | null>(null)
 
-  const previewMutation = useMutation({
+  const searchMutation = useMutation({
     mutationFn: async () => {
-      if (!formId) {
-        throw new Error('Missing VITE_GOOGLE_FORM_ID.')
-      }
-      return fetchFormResponses(formId, accessToken)
+      const trimmedEmail = email.trim()
+      const trimmedPhone = phone.trim()
+      const data = await fetchFormSubmissions({
+        email: trimmedEmail || undefined,
+        phone: trimmedPhone || undefined,
+      })
+      return data
     },
   })
 
-  //bar de recherche beta
-  const [searchTerm, setSearchTerm] = useState("");
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const formId = import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined
+      if (!formId) {
+        throw new Error('Missing VITE_GOOGLE_FORM_ID.')
+      }
+      const googleItems = await fetchGoogleFormQuestionMap(formId, accessToken)
+      return upsertFormQuestionMap(googleItems)
+    },
+  })
 
- 
   useEffect(() => {
     if (!toast) return
     const timer = setTimeout(() => setToast(null), 4200)
@@ -151,115 +129,308 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
   }, [toast])
 
   useEffect(() => {
-    if (!previewMutation.isSuccess || !previewMutation.data) return
-    const preview = previewMutation.data as GoogleFormsPreview
-    const total = preview.totalResponses ?? preview.responses?.length ?? 0
-    setToast({
-      title: 'Prévisualisation chargée',
-      description: `${total} réponses détectées.`,
-      variant: 'info',
-    })
-  }, [previewMutation.isSuccess, previewMutation.data])
+    let isMounted = true
+    fetchFormQuestionMap()
+      .then((data) => {
+        if (!isMounted) return
+        setQuestionMap(data)
+        setMapError(null)
+      })
+      .catch((error: Error) => {
+        if (!isMounted) return
+        setMapError(error.message)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(() => {
-    if (previewMutation.isError && previewMutation.error) {
+    if (!searchMutation.isSuccess || !searchMutation.data) return
+    const total = searchMutation.data.length
+    setToast({
+      title: 'Recherche terminée',
+      description: `${total} réponses trouvées.`,
+      variant: 'info',
+    })
+  }, [searchMutation.isSuccess, searchMutation.data])
+
+  useEffect(() => {
+    if (searchMutation.isError && searchMutation.error) {
       setToast({
-        title: 'Erreur de prévisualisation',
-        description: previewMutation.error.message,
+        title: 'Erreur de recherche',
+        description: searchMutation.error.message,
         variant: 'error',
       })
     }
-  }, [previewMutation.isError, previewMutation.error])
+  }, [searchMutation.isError, searchMutation.error])
 
+  useEffect(() => {
+    if (syncMutation.isSuccess && syncMutation.data) {
+      setQuestionMap(syncMutation.data)
+      setToast({
+        title: 'Libellés mis à jour',
+        description: `${syncMutation.data.length} questions synchronisées.`,
+        variant: 'success',
+      })
+    }
+  }, [syncMutation.isSuccess, syncMutation.data])
 
-  const previewData = previewMutation.data as GoogleFormsPreview | undefined
-  const responses = previewData?.responses ?? []
-  const totalResponses = previewData?.totalResponses ?? responses.length
+  useEffect(() => {
+    if (syncMutation.isError && syncMutation.error) {
+      setToast({
+        title: 'Erreur de synchronisation',
+        description: syncMutation.error.message,
+        variant: 'error',
+      })
+    }
+  }, [syncMutation.isError, syncMutation.error])
 
-  const sessionExpiry = userSession ? formatDate(userSession.expiresAt) : null
-  // ---- UTILITAIRE POUR LIRE UNE RÉPONSE PAR QUESTION ID ----
-const getAnswer = (answers: Record<string, any> | undefined, questionId: string) => {
-  return answers?.[questionId]?.textAnswers?.answers?.[0]?.value ?? "";
-};
+  useEffect(() => {
+    if (!columnFilterValue) {
+      setColumnFilters([])
+      return
+    }
+    setColumnFilters([{ id: columnFilterId, value: columnFilterValue }])
+  }, [columnFilterId, columnFilterValue])
 
-// ---- UTILITAIRE POUR RÉCUPÉRER L’ÂGE (question 13f5679a) ----
-const getAge = (answers: Record<string, any> | undefined) => {
-  const val = getAnswer(answers, "13f5679a"); // TON ID âge
-  const n = Number(val);
-  return Number.isNaN(n) ? null : n;
-};
+  useEffect(() => {
+    if (columnFilters.length === 0 && columnFilterValue) {
+      setColumnFilterValue('')
+    }
+  }, [columnFilters])
 
-//fonction de bar de recherche beta
-// ---- CHERCHE DANS TOUTES LES RÉPONSES ----
-const matchesSearch = (
-  answers: Record<string, any> | undefined,
-  term: string
-) => {
-  if (!term) return true; // si champ vide → tout passe
+  const submissions = (searchMutation.data ?? []) as FormSubmission[]
+  const filteredSubmissions = submissions
 
-  const lowerTerm = term.toLowerCase();
+  const visibleQuestions = useMemo(() => {
+    if (questionMap.length > 0) return questionMap
+    const known = new Set<string>()
+    const fallback: FormQuestionMap[] = []
+    for (const row of submissions) {
+      const answers = (row.raw_json?.answers ?? {}) as Record<string, unknown>
+      Object.keys(answers).forEach((questionId) => {
+        if (known.has(questionId)) return
+        known.add(questionId)
+        fallback.push({
+          question_id: questionId,
+          label: questionId,
+          display_order: null,
+        })
+      })
+    }
+    return fallback
+  }, [questionMap, submissions])
 
-  if (!answers) return false;
-
-  // On parcourt TOUTES les questions du formulaire
-  for (const key of Object.keys(answers)) {
-    const entry = answers[key];
-
-    const textAnswers = entry?.textAnswers?.answers;
-    if (Array.isArray(textAnswers)) {
-      for (const a of textAnswers) {
-        if (a?.value?.toLowerCase().includes(lowerTerm)) {
-          return true;
+  const fieldQuestionIds = useMemo(() => {
+    const findByKeywords = (keywords: string[], exclude: string[] = []) => {
+      for (const question of visibleQuestions) {
+        const label = question.label.toLowerCase()
+        if (exclude.some((term) => label.includes(term))) continue
+        if (keywords.some((term) => label.includes(term))) {
+          return question.question_id
         }
       }
+      return undefined
     }
-  }
 
-  return false;
-};
-//-------------------------------------------------
+    return {
+      lastName: findByKeywords(['nom de famille', 'nom'], ['prenom', 'prénom']),
+      firstName: findByKeywords(['prénom', 'prenom']),
+      age: findByKeywords(['âge', 'age']),
+      phoneFromForm: findByKeywords([
+        'téléphone',
+        'telephone',
+        'portable',
+        'mobile',
+        'numéro',
+        'numero',
+      ]),
+    }
+  }, [visibleQuestions])
 
-// ---- VERSION FILTRÉE DE TON TABLEAU ----
-const previewRows = useMemo(() => {
-  return responses
-    .filter((r: any) => {
-      const answers = r.answers as Record<string, any>;
+  const handleDownloadCsv = useCallback(
+    (row: FormSubmission) => {
+      const meta = [
+        {
+          label: 'Soumis',
+          value: formatDate(row.submitted_at ?? row.created_at),
+        },
+        { label: 'Email', value: row.email ?? '' },
+        { label: 'Téléphone', value: row.phone ?? '' },
+      ]
 
-      // === EXEMPLES DE 3 FILTRES (tu peux changer les IDs plus tard) ===
-      const sexe = getAnswer(answers, "0ee9528d");      // Une femme / Un homme
-      const voulEnfant = getAnswer(answers, "4a93faa4");     // oui / non / ça se discute
-      const age = getAge(answers);                      // nombre
-      const pratiquant = getAnswer(answers, "32cdfe5a"); // oui / non
+      const questionPairs = visibleQuestions.map((question) => ({
+        label: question.label,
+        value: getAnswerValuesForQuestion(row.raw_json, question.question_id).join(' • '),
+      }))
 
-      // ---- FILTRE 1 : sexe ----
-      const okSexe =
-        !select1 || sexe.includes(select1);
+      const headers = meta
+        .map((item) => item.label)
+        .concat(questionPairs.map((item) => item.label))
+      const values = meta
+        .map((item) => item.value)
+        .concat(questionPairs.map((item) => item.value))
 
-      // ---- FILTRE 2 : Vouloir des enfant ----
-      const okvoulEnfant =
-        !select2 || voulEnfant.includes(select2);
-
-      // ---- FILTRE 3 : TRANCHES D’ÂGE ----
-      let okAge = true;
-      if (select3 && age !== null) {
-        if (select3 === "18-25") okAge = age >= 18 && age <= 25;
-        if (select3 === "26-35") okAge = age >= 26 && age <= 35;
-        if (select3 === "36-50") okAge = age >= 36 && age <= 50;
-        if (select3 === "50+") okAge = age > 50;
+      const escapeValue = (value: string) => {
+        const safe = String(value ?? '').replace(/"/g, '""')
+        return `"${safe}"`
       }
 
-      // ---- FILTRE 4 : Pratiquant ----
-        const okPratiquant =
-        !select4 || pratiquant.includes(select4);
+      const csv = `\ufeff${headers.map(escapeValue).join(';')}\n${values
+        .map(escapeValue)
+        .join(';')}`
 
-      // ---- FILTRE 5 : BARRE DE RECHERCHE ----
-        const okSearch = matchesSearch(answers, searchTerm);
+      const base = (row.email ?? row.source_row_id ?? row.id)
+        .toString()
+        .replace(/[^a-z0-9-_]+/gi, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+      const filename = `client-${base || row.id}.csv`
 
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(url)
+    },
+    [visibleQuestions],
+  )
 
-      return okSexe && okvoulEnfant && okAge && okPratiquant && okSearch;
-    })
-}, [responses, select1, select2, select3, select4]);
-onload=() => previewMutation.mutate()
+  const columns = useMemo<ColumnDef<FormSubmission>[]>(() => {
+    const getAnswerValue = (row: FormSubmission, questionId?: string) => {
+      if (!questionId) return ''
+      return getAnswerValuesForQuestion(row.raw_json, questionId).join(' • ')
+    }
+
+    const renderValue = (value: string) => (value ? value : '—')
+
+    return [
+      {
+        id: 'last_name',
+        header: 'Nom',
+        meta: { label: 'Nom' },
+        accessorFn: (row) => getAnswerValue(row, fieldQuestionIds.lastName),
+        cell: ({ row }) => {
+          const value = row.getValue<string>('last_name')
+          return <span className="whitespace-nowrap">{renderValue(value)}</span>
+        },
+      },
+      {
+        id: 'first_name',
+        header: 'Prénom',
+        meta: { label: 'Prénom' },
+        accessorFn: (row) => getAnswerValue(row, fieldQuestionIds.firstName),
+        cell: ({ row }) => {
+          const value = row.getValue<string>('first_name')
+          return <span className="whitespace-nowrap">{renderValue(value)}</span>
+        },
+      },
+      {
+        id: 'email',
+        header: 'Email',
+        meta: { label: 'Email' },
+        accessorFn: (row) => row.email ?? '',
+        cell: ({ row }) => {
+          const value = row.original.email ?? row.getValue<string>('email')
+          return <span className="whitespace-nowrap">{renderValue(value)}</span>
+        },
+      },
+      {
+        id: 'phone',
+        header: 'Téléphone',
+        meta: { label: 'Téléphone' },
+        accessorFn: (row) => row.phone ?? getAnswerValue(row, fieldQuestionIds.phoneFromForm),
+        cell: ({ row }) => {
+          const value = row.getValue<string>('phone')
+          return <span className="whitespace-nowrap">{renderValue(value)}</span>
+        },
+      },
+      {
+        id: 'age',
+        header: 'Âge',
+        meta: { label: 'Âge' },
+        accessorFn: (row) => getAnswerValue(row, fieldQuestionIds.age),
+        cell: ({ row }) => {
+          const value = row.getValue<string>('age')
+          return <span className="whitespace-nowrap">{renderValue(value)}</span>
+        },
+      },
+      {
+        id: 'phone_raw',
+        header: 'Numéro de téléphone',
+        meta: { label: 'Numéro de téléphone' },
+        accessorFn: (row) => getAnswerValue(row, fieldQuestionIds.phoneFromForm),
+        cell: ({ row }) => {
+          const value = row.getValue<string>('phone_raw')
+          return <span className="whitespace-nowrap">{renderValue(value)}</span>
+        },
+      },
+      {
+        id: 'actions',
+        header: 'Action',
+        meta: { label: 'Action' },
+        enableHiding: false,
+        cell: ({ row }) => (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => handleDownloadCsv(row.original)}
+          >
+            CSV
+          </Button>
+        ),
+      },
+    ]
+  }, [fieldQuestionIds, handleDownloadCsv])
+
+  const columnFilterOptions = useMemo(
+    () => [
+      { id: 'last_name', label: 'Nom' },
+      { id: 'first_name', label: 'Prénom' },
+      { id: 'email', label: 'Email' },
+      { id: 'phone', label: 'Téléphone' },
+      { id: 'age', label: 'Âge' },
+      { id: 'phone_raw', label: 'Numéro de téléphone' },
+    ],
+    [],
+  )
+
+  const searchableColumns = ['last_name', 'first_name', 'email', 'phone', 'age', 'phone_raw']
+
+  const table = useReactTable({
+    data: filteredSubmissions,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const term = String(filterValue ?? '').toLowerCase()
+      if (!term) return true
+      return searchableColumns.some((columnId) => {
+        const value = String(row.getValue<string>(columnId) ?? '')
+        return value.toLowerCase().includes(term)
+      })
+    },
+    state: {
+      columnVisibility,
+      columnFilters,
+      globalFilter,
+    },
+    onColumnVisibilityChange: setColumnVisibility,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+  })
+
+  const sessionExpiry = userSession ? formatDate(userSession.expiresAt) : null
+
+  const handleSearch = () => {
+    setHasSearched(true)
+    searchMutation.mutate()
+  }
+
   return (
     <div className="min-h-screen">
       <div className="mx-auto flex w-full max-w-7xl gap-6 px-6 py-10">
@@ -268,7 +439,7 @@ onload=() => previewMutation.mutate()
             <div className="space-y-3">
               <Logo subtitle="Back office" />
               <p className="text-sm text-muted-foreground">
-                Visualizez toute les réponses au formulaire.
+                Visualisez les réponses issues de la table form_submissions.
               </p>
             </div>
 
@@ -298,7 +469,7 @@ onload=() => previewMutation.mutate()
                 Support
               </p>
               <p className="text-muted-foreground">
-                Besoin d’aide sur comment filtré vos réponses ?
+                Besoin d’aide pour les exports ?
               </p>
               <Button variant="secondary" size="sm" className="w-full">
                 Contacter l’équipe
@@ -317,11 +488,11 @@ onload=() => previewMutation.mutate()
                 Rubrique Recherche
               </p>
               <h1 className="font-display text-3xl font-semibold md:text-4xl">
-                Filtrez et analysez les réponses
+                Filtrez les formulaires importés
               </h1>
               <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-                Filtrez les réponses de votre formulaire Google Forms selon
-                différents critères pour mieux analyser vos données.
+                Recherche par email, téléphone ou dans toutes les réponses
+                enregistrées dans form_submissions.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -356,17 +527,11 @@ onload=() => previewMutation.mutate()
           <div className="grid gap-4 md:grid-cols-3">
             <Card className="border-border/60 bg-card/70">
               <CardHeader>
-                <CardTitle className="text-base">Formulaire</CardTitle>
-                <CardDescription>ID Google Forms</CardDescription>
+                <CardTitle className="text-base">Table</CardTitle>
+                <CardDescription>form_submissions</CardDescription>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                <p className="truncate">
-                  {formId ? (
-                    <span className="text-foreground">{formId}</span>
-                  ) : (
-                    'Non configuré'
-                  )}
-                </p>
+                <p className="truncate">Données brutes issues de Supabase.</p>
               </CardContent>
             </Card>
             <Card className="border-border/60 bg-card/70">
@@ -387,178 +552,170 @@ onload=() => previewMutation.mutate()
             <Card className="border-border/60 bg-card/80">
               <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <CardTitle>Visualisation des réponses</CardTitle>
+                  <CardTitle>Recherche</CardTitle>
                   <CardDescription>
-                    Tableau des réponses Google Forms.
+                    Formulaire de filtrage des réponses.
                   </CardDescription>
                 </div>
-                <Badge variant={previewMutation.isSuccess ? 'success' : 'outline'}>
-                  {previewMutation.isSuccess
-                    ? `${totalResponses} réponses`
+                <Badge variant={searchMutation.isSuccess ? 'success' : 'outline'}>
+                  {searchMutation.isSuccess
+                    ? `${table.getFilteredRowModel().rows.length} réponses`
                     : 'En attente'}
                 </Badge>
               </CardHeader>
-              <CardContent className="space-y-4 items-center">
+              <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
-                    <div className="flex flex-wrap gap-3 items-center">
-                        <div>
-                            <h5>Le sexe</h5>
-                            <select
-                                className="border rounded px-2 py-1"
-                                value={select1}
-                                onChange={e => setSelect1(e.target.value)}
-                                title='Filtre1'
-                            >
-                                <option value=""> - </option>
-                                <option value="Un homme">Un homme</option>
-                                <option value="Une femme">Une femme</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <h5>Veut des enfants</h5>
-                            <select
-                                className="border rounded px-2 py-1"
-                                value={select2}
-                                onChange={e => setSelect2(e.target.value)}
-                                title='Filtre2'
-                            >
-                                <option value=""> - </option>
-                                <option value="Oui">Oui</option>
-                                <option value="Non">Non</option>
-                                <option value="Ça se discute">Ça se discute</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <h5>Tranche d'âge</h5>
-                            <select
-                                className="border rounded px-2 py-1"
-                                value={select3}
-                                onChange={e => setSelect3(e.target.value)}
-                                title='Filtre3'
-                            >
-                                <option value=""> - </option>
-                                <option value="18-25">18-25</option>
-                                <option value="26-35">26-35</option>
-                                <option value="36-50">36-50</option>
-                                <option value="50+">50+</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <h5>Pratiquant</h5>
-                            <select
-                                className="border rounded px-2 py-1"
-                                value={select4}
-                                onChange={e => setSelect4(e.target.value)}
-                                title='Filtre4'
-                            >
-                                <option value=""> - </option>
-                                <option value="Pratiquant">Pratiquant</option>
-                                <option value="Non pratiquant">Non Pratiquant</option>
-                            </select>
-                        </div>
-                        </div>
-                
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => previewMutation.mutate()}
-                    disabled={previewMutation.isPending}
-                  >
-                    Rafraîchir
-                  </Button>
+                  <div className="flex flex-1 flex-wrap gap-3">
+                    <div className="min-w-[220px] flex-1">
+                      <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                        placeholder="ex: jane@email.com"
+                      />
+                    </div>
+                    <div className="min-w-[220px] flex-1">
+                      <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                        Téléphone
+                      </label>
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(event) => setPhone(event.target.value)}
+                        className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                        placeholder="ex: 06 12 34 56 78"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="w-full mb-4 flex flex-wrap gap-3">
-                  <input
-                    type="search"
-                    placeholder="Rechercher dans toutes les réponses..."
-                    className="w-full border rounded px-3 py-2"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    title='Recherche'
-                    disabled={previewMutation.isPending}
-                    maxLength={100}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => previewMutation.mutate()}
-                    disabled={previewMutation.isPending}
-                  >
-                    Valider
-                  </Button>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSearch}
+                      disabled={searchMutation.isPending}
+                    >
+                      {searchMutation.isPending ? 'Recherche...' : 'Rechercher'}
+                    </Button>
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => syncMutation.mutate()}
+                      disabled={syncMutation.isPending}
+                    >
+                      {syncMutation.isPending
+                        ? 'Mise à jour...'
+                        : 'Mettre à jour les libellés'}
+                    </Button>
+                  </div>
                 </div>
-                  <p className="text-xs text-muted-foreground">Pour rechercher, vous devez valider la recherche après avoir entré un terme de recherche. Si vous ne souhaitez pas effectuer de recherche, laissez le champ vide et valider.</p>
 
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[200px]">
+                    <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                      Filtrer une colonne
+                    </label>
+                    <select
+                      className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                      value={columnFilterId}
+                      onChange={(event) => setColumnFilterId(event.target.value)}
+                    >
+                      {columnFilterOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-[220px] flex-1">
+                    <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                      Valeur
+                    </label>
+                    <input
+                      type="text"
+                      value={columnFilterValue}
+                      onChange={(event) => setColumnFilterValue(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                      placeholder="Ex: Martin"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setColumnFilterValue('')}
+                    >
+                      Effacer
+                    </Button>
+                  </div>
+                </div>
 
-                <div className="rounded-2xl border border-border/60 bg-muted/20">
-                  <Table>
+                <DataTableToolbar
+                  table={table}
+                  globalPlaceholder="Rechercher (nom, prénom, email, téléphone)..."
+                  showViewOptions={false}
+                />
+
+                <p className="text-xs text-muted-foreground">
+                  Les champs email/téléphone filtrent côté serveur. La recherche
+                  globale filtre le tableau.
+                </p>
+
+                {mapError ? (
+                  <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-700">
+                    Mapping introuvable: {mapError}. Les IDs de questions seront affichés.
+                  </div>
+                ) : null}
+
+                <div className="rounded-2xl border border-border/60 bg-muted/20 overflow-x-auto max-w-full">
+                  <Table className="min-w-[900px] w-max">
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Response ID</TableHead>
-                        <TableHead>Soumis</TableHead>
-                        <TableHead>Nom</TableHead>
-                        <TableHead>Prenom</TableHead>
-                        <TableHead>Numéro de teléphone</TableHead>
-                        <TableHead>mail</TableHead>
-                      </TableRow>
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id} className="whitespace-nowrap">
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
                     </TableHeader>
                     <TableBody>
-                      {previewRows.length === 0 ? (
+                      {hasSearched && table.getFilteredRowModel().rows.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={3}
+                            colSpan={table.getVisibleFlatColumns().length}
                             className="text-muted-foreground"
                           >
-                            Aucune réponse à afficher pour le moment.
+                            Aucun résultat pour ces critères.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        previewRows.map((response) => {
-                          const summary = summarizeAnswers(response.answers)
-                          return (
-                            <TableRow key={response.responseId}>
-                              <TableCell className="font-medium">
-                                {response.responseId?.slice(0, 12) || '—'}
-                              </TableCell>
-                              <TableCell>
-                                {formatDate(
-                                  response.lastSubmittedTime ||
-                                    response.createTime,
+                        table.getRowModel().rows.map((row) => (
+                          <TableRow key={row.id}>
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id}>
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext(),
                                 )}
                               </TableCell>
-                              <TableCell>
-                                {(() => {
-                                  const entry = (response.answers as Record<string, any>)?.['778b574a']
-                                  const vals = entry?.textAnswers?.answers?.map((a: any) => a.value).filter(Boolean)
-                                  return vals
-                                })()}
-                              </TableCell>
-                              <TableCell>
-                                {(() => {
-                                  const entry = (response.answers as Record<string, any>)?.['184c859f']
-                                  const vals = entry?.textAnswers?.answers?.map((a: any) => a.value).filter(Boolean)
-                                  return vals
-                                })()}
-                              </TableCell>
-                              <TableCell>
-                                {(() => {
-                                  const entry = (response.answers as Record<string, any>)?.['458e9ec2']
-                                  const vals = entry?.textAnswers?.answers?.map((a: any) => a.value).filter(Boolean)
-                                  return vals
-                                })()}
-                              </TableCell>
-                              <TableCell>
-                                {response.respondentEmail || '—'}
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })
+                            ))}
+                          </TableRow>
+                        ))
                       )}
                     </TableBody>
                   </Table>
@@ -569,8 +726,8 @@ onload=() => previewMutation.mutate()
                     Voir le JSON brut
                   </summary>
                   <pre className="mt-3 max-h-72 overflow-auto text-xs leading-relaxed">
-                    {previewMutation.data
-                      ? JSON.stringify(previewMutation.data, null, 2)
+                    {searchMutation.data
+                      ? JSON.stringify(searchMutation.data, null, 2)
                       : 'Aucune réponse chargée.'}
                   </pre>
                 </details>
@@ -578,19 +735,19 @@ onload=() => previewMutation.mutate()
             </Card>
 
             <div className="space-y-6">
-                <Card className="border-border/60 bg-card/80">
-                    <CardHeader>
-                    <CardTitle className="text-base">Derniers repères</CardTitle>
-                    <CardDescription>
-                        Notes internes pour l’équipe.
-                    </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm text-muted-foreground">
-                    <p>• Vérifier le mapping des champs avant l’import.</p>
-                    <p>• Contrôler les doublons sur la table Supabase.</p>
-                    <p>• Mettre à jour le formulaire si besoin.</p>
-                    </CardContent>
-                </Card>
+              <Card className="border-border/60 bg-card/80">
+                <CardHeader>
+                  <CardTitle className="text-base">Étapes suivantes</CardTitle>
+                  <CardDescription>
+                    Mapping des questions à intégrer.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm text-muted-foreground">
+                  <p>• Ajouter la table form_question_map.</p>
+                  <p>• Associer question_id ? label.</p>
+                  <p>• Afficher les libellés dans le tableau.</p>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>
