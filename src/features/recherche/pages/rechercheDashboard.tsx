@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef,
+  type FilterFn,
+} from '@tanstack/react-table'
 import type { UserSession } from '../../../shared/types'
 import { Button } from '../../../shared/components/ui/button'
 import { Badge } from '../../../shared/components/ui/badge'
@@ -20,6 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from '../../../shared/components/ui/table'
+import { ScrollArea } from '../../../shared/components/ui/scroll-area'
+import { DataTableToolbar } from '../../../shared/components/data-table/data-table-toolbar'
 import {
   fetchSubmissionsWithAnswers,
   type SubmissionWithAnswers,
@@ -41,6 +52,16 @@ interface DashboardProps {
   accessToken: string
   userSession: UserSession | null
   onLogout: () => void
+}
+
+type SubmissionRow = {
+  id: string
+  nom: string
+  prenom: string
+  telephone: string
+  email: string
+  searchIndex: string
+  submission: SubmissionWithAnswers
 }
 
 const NAV_ITEMS = [
@@ -184,13 +205,109 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
     }
   }, [questionMap])
 
+  const tableData = useMemo<SubmissionRow[]>(() => {
+    return submissions.map((submission) => {
+      const nom = getAnswerValue(
+        submission.answers,
+        fieldQuestionIds.lastName ?? '',
+      )
+      const prenom = getAnswerValue(
+        submission.answers,
+        fieldQuestionIds.firstName ?? '',
+      )
+      const telephone =
+        submission.phone ||
+        getAnswerValue(submission.answers, fieldQuestionIds.phone ?? '')
+      const emailValue = submission.email ?? ''
+      const searchIndex = [nom, prenom, telephone, emailValue]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return {
+        id: submission.id,
+        nom,
+        prenom,
+        telephone,
+        email: emailValue,
+        searchIndex,
+        submission,
+      }
+    })
+  }, [fieldQuestionIds, submissions])
+
+  const columns = useMemo<ColumnDef<SubmissionRow>[]>(
+    () => [
+      {
+        accessorKey: 'nom',
+        header: 'Nom',
+        meta: { label: 'Nom' },
+        cell: ({ row }) => row.original.nom || '--',
+      },
+      {
+        accessorKey: 'prenom',
+        header: 'Prenom',
+        meta: { label: 'Prenom' },
+        cell: ({ row }) => row.original.prenom || '--',
+      },
+      {
+        accessorKey: 'telephone',
+        header: 'Telephone',
+        meta: { label: 'Telephone' },
+        cell: ({ row }) => row.original.telephone || '--',
+      },
+      {
+        id: 'action',
+        header: 'Action',
+        enableGlobalFilter: false,
+        cell: ({ row }) => (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setSelectedSubmission(row.original.submission)}
+          >
+            Voir tout
+          </Button>
+        ),
+      },
+    ],
+    [setSelectedSubmission],
+  )
+
+  const globalFilterFn: FilterFn<SubmissionRow> = (row, _columnId, filterValue) => {
+    const term = String(filterValue ?? '').trim().toLowerCase()
+    if (!term) return true
+    return row.original.searchIndex.includes(term)
+  }
+
+  const table = useReactTable({
+    data: tableData,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn,
+    initialState: {
+      pagination: { pageSize: 5 },
+    },
+  })
+
   const sessionExpiry = userSession ? formatDate(userSession.expiresAt) : null
+  const filteredCount = table.getFilteredRowModel().rows.length
+  const pageCount = table.getPageCount()
+  const pagination = table.getState().pagination
+  const pageStart =
+    filteredCount === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
+  const pageEnd = Math.min(
+    (pagination.pageIndex + 1) * pagination.pageSize,
+    filteredCount,
+  )
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto flex w-full max-w-7xl gap-6 px-6 py-10">
-        <aside className="sticky top-8 hidden h-[calc(100vh-4rem)] w-72 flex-col lg:flex">
-          <div className="flex h-full flex-col gap-6 rounded-3xl border border-border/70 bg-card/80 p-6 shadow-sm">
+    <div className="min-h-full overflow-x-hidden overflow-y-visible lg:h-full lg:overflow-hidden">
+      <div className="mx-auto flex min-h-full min-w-0 w-full max-w-7xl gap-4 px-4 py-4 lg:h-full">
+        <aside className="hidden h-full w-72 flex-col lg:flex">
+          <div className="flex h-full flex-col gap-4 rounded-3xl border border-border/70 bg-card/80 p-4 shadow-sm">
             <div className="space-y-3">
               <Logo subtitle="Back office" />
               <p className="text-sm text-muted-foreground">
@@ -231,19 +348,19 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
           </div>
         </aside>
 
-        <main className="flex-1 space-y-6">
-          <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <main className="flex min-h-full min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-visible lg:h-full lg:overflow-hidden">
+          <header className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="mb-3 lg:hidden">
+              <div className="mb-2 lg:hidden">
                 <Logo subtitle="Back office" />
               </div>
               <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
                 Rubrique Recherche
               </p>
-              <h1 className="font-display text-3xl font-semibold md:text-4xl">
+              <h1 className="font-display text-2xl font-semibold md:text-3xl">
                 Recherche de clients
               </h1>
-              <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+              <p className="max-w-2xl text-sm text-muted-foreground">
                 Recherchez par email ou téléphone, consultez les réponses complètes.
               </p>
             </div>
@@ -260,16 +377,32 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
             </div>
           </header>
 
-          <Card className="border-border/60 bg-card/80">
+          <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-2 lg:hidden">
+            {NAV_ITEMS.filter((item) => item.route).map((item) => (
+              <a
+                key={item.label}
+                href={item.route || undefined}
+                className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] ${
+                  item.active
+                    ? 'border-primary/50 bg-primary/10 text-foreground'
+                    : 'border-border/60 text-muted-foreground'
+                }`}
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+
+          <Card className="shrink-0 min-w-0 border-border/60 bg-card/80">
             <CardHeader>
               <CardTitle>Filtres de recherche</CardTitle>
               <CardDescription>
                 Recherchez par email ou téléphone, ou laissez vide pour tout afficher.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-3">
-                <div className="min-w-[220px] flex-1">
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
                   <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                     Email
                   </label>
@@ -281,7 +414,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                     placeholder="ex: jane@email.com"
                   />
                 </div>
-                <div className="min-w-[220px] flex-1">
+                <div className="min-w-0">
                   <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                     Téléphone
                   </label>
@@ -316,71 +449,97 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
               </div>
             </CardContent>
           </Card>
-
-          <Card className="border-border/60 bg-card/80">
+          <Card className="flex min-h-0 min-w-0 flex-1 flex-col border-border/60 bg-card/80">
             <CardHeader>
-              <CardTitle>Résultats ({submissions.length})</CardTitle>
+              <CardTitle>
+                Resultats {filteredCount} / {submissions.length}
+              </CardTitle>
               <CardDescription>
-                Cliquez sur "Voir tout" pour afficher les réponses complètes.
+                Cliquez sur "Voir tout" pour afficher les reponses completes.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-2xl border border-border/60 bg-muted/20 overflow-x-auto">
-                <Table>
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+              <DataTableToolbar
+                table={table}
+                globalPlaceholder="Filtrer les resultats..."
+                showViewOptions={false}
+              />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Prénom</TableHead>
-                      <TableHead>Téléphone</TableHead>
-                      <TableHead>Action</TableHead>
-                    </TableRow>
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <TableRow key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <TableHead key={header.id}>
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    ))}
                   </TableHeader>
                   <TableBody>
-                    {submissions.length === 0 ? (
+                    {tableData.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center text-muted-foreground">
                           {searchMutation.isPending
                             ? 'Recherche en cours...'
-                            : 'Aucun résultat. Cliquez sur "Rechercher" pour commencer.'}
+                            : 'Aucun resultat. Cliquez sur "Rechercher" pour commencer.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : table.getRowModel().rows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          Aucun resultat pour ce filtre.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      submissions.map((submission) => {
-                        const nom = getAnswerValue(
-                          submission.answers,
-                          fieldQuestionIds.lastName ?? '',
-                        )
-                        const prenom = getAnswerValue(
-                          submission.answers,
-                          fieldQuestionIds.firstName ?? '',
-                        )
-                        const tel =
-                          submission.phone ||
-                          getAnswerValue(
-                            submission.answers,
-                            fieldQuestionIds.phone ?? '',
-                          )
-
-                        return (
-                          <TableRow key={submission.id}>
-                            <TableCell>{nom || '—'}</TableCell>
-                            <TableCell>{prenom || '—'}</TableCell>
-                            <TableCell>{tel || '—'}</TableCell>
-                            <TableCell>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => setSelectedSubmission(submission)}
-                              >
-                                Voir tout
-                              </Button>
+                      table.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id} className="py-2.5">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </TableCell>
-                          </TableRow>
-                        )
-                      })
+                          ))}
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3 text-sm">
+                  <div className="text-muted-foreground">
+                    {filteredCount === 0
+                      ? '0 resultat'
+                      : `${pageStart}-${pageEnd} sur ${filteredCount}`}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                    >
+                      Precedent
+                    </Button>
+                    <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Page {pageCount === 0 ? 0 : pagination.pageIndex + 1} / {pageCount}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                    >
+                      Suivant
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -400,8 +559,8 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
 
       {selectedSubmission ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-background shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 p-6 backdrop-blur">
+          <div className="relative flex h-[calc(100vh-2rem)] h-[calc(100dvh-2rem)] w-full max-w-none flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:h-[min(92vh,900px)] sm:h-[min(92dvh,900px)] sm:w-[min(94vw,1200px)] sm:rounded-3xl xl:w-[min(90vw,1320px)]">
+            <div className="z-10 flex items-center justify-between border-b border-border bg-background/95 p-4 backdrop-blur sm:p-6">
               <div>
                 <h2 className="font-display text-2xl font-semibold">
                   Réponses complètes
@@ -420,7 +579,8 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
               </Button>
             </div>
 
-            <div className="space-y-4 p-6">
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="space-y-4 p-4 sm:p-6">
               <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -474,7 +634,8 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                   )
                 })}
               </div>
-            </div>
+              </div>
+            </ScrollArea>
           </div>
         </div>
       ) : null}
@@ -483,3 +644,4 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
 }
 
 export default RechercheDashboard
+

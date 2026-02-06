@@ -130,11 +130,11 @@ function AuthPage() {
     : null
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative h-full overflow-x-hidden overflow-y-auto">
       <div className="pointer-events-none absolute -top-40 right-0 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 left-0 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
 
-      <div className="mx-auto w-full max-w-7xl px-6 py-12 lg:py-20">
+      <div className="mx-auto w-full max-w-7xl px-6 py-8 lg:py-10">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <Logo subtitle="Agence matrimoniale" />

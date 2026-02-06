@@ -5,5 +5,5 @@ type BackOfficeLayoutProps = {
 }
 
 export default function BackOfficeLayout({ children }: BackOfficeLayoutProps) {
-  return <div className="min-h-screen">{children}</div>
+  return <div className="min-h-full overflow-visible lg:h-full lg:overflow-hidden">{children}</div>
 }
