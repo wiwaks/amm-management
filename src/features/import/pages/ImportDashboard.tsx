@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { fetchFormResponses } from '../../../services/google/forms'
+import { normalizeAllSubmissions } from '../../../services/supabase/formSubmissionAnswers'
 import type { ImportResult, UserSession } from '../../../shared/types'
 import { Button } from '../../../shared/components/ui/button'
 import { Badge } from '../../../shared/components/ui/badge'
@@ -46,12 +47,14 @@ interface DashboardProps {
   onLogout: () => void
 }
 
+// Navigation items for the sidebar and mobile nav
 const NAV_ITEMS = [
-  { label: 'Aperçu', active: false },
-  { label: 'Import', active: true },
-  { label: 'Historique', active: false },
-  { label: 'Clients', active: false },
-  { label: 'Paramètres', active: false },
+  { label: 'Aperçu', active: false, route: null },
+  { label: 'Import', active: true, route: '/dashboard' },
+  { label: 'Historique', active: false, route: null },
+  { label: 'Recherches', active: false, route: '/recherche' },
+  { label: 'Clients', active: false, route: null },
+  { label: 'Paramètres', active: false, route: null },
 ]
 
 function formatDate(value?: string) {
@@ -112,7 +115,6 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
     .VITE_SUPABASE_ANON_KEY as string | undefined
   const importEndpoint = import.meta.env
     .VITE_IMPORT_ENDPOINT as string | undefined
-
   const [toast, setToast] = useState<ToastMessage | null>(null)
 
   const previewMutation = useMutation({
@@ -121,6 +123,40 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
         throw new Error('Missing VITE_GOOGLE_FORM_ID.')
       }
       return fetchFormResponses(formId, accessToken)
+    },
+    onSuccess: (data) => {
+      const preview = data as GoogleFormsPreview
+      const total = preview.totalResponses ?? preview.responses?.length ?? 0
+      setToast({
+        title: 'Prévisualisation chargée',
+        description: `${total} réponses détectées.`,
+        variant: 'info',
+      })
+    },
+    onError: (error) => {
+      setToast({
+        title: 'Erreur de prévisualisation',
+        description: error.message,
+        variant: 'error',
+      })
+    },
+  })
+
+  const normalizeMutation = useMutation({
+    mutationFn: normalizeAllSubmissions,
+    onSuccess: ({ total, normalized, answersCreated }) => {
+      setToast({
+        title: 'Normalisation terminée',
+        description: `${normalized} / ${total} soumissions normalisées · ${answersCreated} réponses créées.`,
+        variant: 'success',
+      })
+    },
+    onError: (error) => {
+      setToast({
+        title: 'Erreur de normalisation',
+        description: error.message,
+        variant: 'error',
+      })
     },
   })
 
@@ -160,6 +196,24 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
 
       return (await response.json()) as ImportResult
     },
+    onSuccess: (data) => {
+      const { total, imported, updated, skipped } = data
+      const totalLabel = total ?? imported ?? 0
+      setToast({
+        title: 'Import terminé',
+        description: `Importé ${imported ?? 0} / ${totalLabel} · Modifiés ${
+          updated ?? 0
+        } · Ignorés ${skipped ?? 0}`,
+        variant: 'success',
+      })
+    },
+    onError: (error) => {
+      setToast({
+        title: "Erreur d'import",
+        description: error.message,
+        variant: 'error',
+      })
+    },
   })
 
   useEffect(() => {
@@ -168,64 +222,20 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
     return () => clearTimeout(timer)
   }, [toast])
 
-  useEffect(() => {
-    if (!previewMutation.isSuccess || !previewMutation.data) return
-    const preview = previewMutation.data as GoogleFormsPreview
-    const total = preview.totalResponses ?? preview.responses?.length ?? 0
-    setToast({
-      title: 'Prévisualisation chargée',
-      description: `${total} réponses détectées.`,
-      variant: 'info',
-    })
-  }, [previewMutation.isSuccess, previewMutation.data])
-
-  useEffect(() => {
-    if (previewMutation.isError && previewMutation.error) {
-      setToast({
-        title: 'Erreur de prévisualisation',
-        description: previewMutation.error.message,
-        variant: 'error',
-      })
-    }
-  }, [previewMutation.isError, previewMutation.error])
-
-  useEffect(() => {
-    if (!importMutation.isSuccess || !importMutation.data) return
-    const { total, imported, updated, skipped } = importMutation.data
-    const totalLabel = total ?? imported ?? 0
-    setToast({
-      title: 'Import terminé',
-      description: `Importé ${imported ?? 0} / ${totalLabel} · Modifiés ${
-        updated ?? 0
-      } · Ignorés ${skipped ?? 0}`,
-      variant: 'success',
-    })
-  }, [importMutation.isSuccess, importMutation.data])
-
-  useEffect(() => {
-    if (importMutation.isError && importMutation.error) {
-      setToast({
-        title: 'Erreur d’import',
-        description: importMutation.error.message,
-        variant: 'error',
-      })
-    }
-  }, [importMutation.isError, importMutation.error])
-
   const previewData = previewMutation.data as GoogleFormsPreview | undefined
   const responses = previewData?.responses ?? []
-  const previewRows = useMemo(() => responses.slice(0, 6), [responses])
+  const previewRows = useMemo(() => responses.slice(0, 4), [responses])
   const totalResponses = previewData?.totalResponses ?? responses.length
 
   const importStats = importMutation.data
   const sessionExpiry = userSession ? formatDate(userSession.expiresAt) : null
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto flex w-full max-w-7xl gap-6 px-6 py-10">
-        <aside className="sticky top-8 hidden h-[calc(100vh-4rem)] w-72 flex-col lg:flex">
-          <div className="flex h-full flex-col gap-6 rounded-3xl border border-border/70 bg-card/80 p-6 shadow-sm">
-            <div className="space-y-3">
+    <div className="min-h-full overflow-x-hidden overflow-y-visible lg:h-full lg:overflow-hidden">
+      <div className="mx-auto flex min-h-full min-w-0 w-full max-w-7xl gap-4 px-4 py-4 lg:h-full">
+        <aside className="hidden h-full w-72 flex-col lg:flex">
+          <div className="flex h-full flex-col gap-4 rounded-3xl border border-border/70 bg-card/80 p-4 shadow-sm">
+            <div className="space-y-2.5">
               <Logo subtitle="Back office" />
               <p className="text-sm text-muted-foreground">
                 Centralisez vos imports Google Forms en un seul endroit.
@@ -233,10 +243,10 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
             </div>
 
             <nav className="space-y-2">
-              {NAV_ITEMS.map((item) => (
-                <button
+              {NAV_ITEMS.filter((item) => item.route).map((item) => (
+                <a
                   key={item.label}
-                  type="button"
+                  href={item.route || undefined}
                   className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition ${
                     item.active
                       ? 'border-primary/40 bg-primary/10 text-foreground'
@@ -249,7 +259,7 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                       actif
                     </span>
                   ) : null}
-                </button>
+                </a>
               ))}
             </nav>
 
@@ -267,19 +277,19 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
           </div>
         </aside>
 
-        <main className="flex-1 space-y-6">
-          <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <main className="flex min-h-full min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-visible lg:h-full lg:overflow-hidden">
+          <header className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="mb-3 lg:hidden">
+              <div className="mb-2 lg:hidden">
                 <Logo subtitle="Back office" />
               </div>
               <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
                 Rubrique import
               </p>
-              <h1 className="font-display text-3xl font-semibold md:text-4xl">
+              <h1 className="font-display text-2xl font-semibold md:text-3xl">
                 Prévisualisation & Import
               </h1>
-              <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+              <p className="max-w-2xl text-sm text-muted-foreground">
                 Suivez les réponses, contrôlez le format, puis lancez l’import
                 Supabase en toute sérénité.
               </p>
@@ -297,11 +307,11 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
             </div>
           </header>
 
-          <div className="flex gap-2 overflow-auto pb-2 lg:hidden">
-            {NAV_ITEMS.map((item) => (
-              <button
+          <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-2 lg:hidden">
+            {NAV_ITEMS.filter((item) => item.route).map((item) => (
+              <a
                 key={item.label}
-                type="button"
+                href={item.route || undefined}
                 className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] ${
                   item.active
                     ? 'border-primary/50 bg-primary/10 text-foreground'
@@ -309,90 +319,96 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                 }`}
               >
                 {item.label}
-              </button>
+              </a>
             ))}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="border-border/60 bg-card/70">
-              <CardHeader>
-                <CardTitle className="text-base">Formulaire</CardTitle>
-                <CardDescription>ID Google Forms</CardDescription>
+          <div className="shrink-0 grid gap-3 md:grid-cols-4">
+            <Card className="border-border/40">
+              <CardHeader className="pb-2 pt-4">
+                <CardDescription className="text-xs uppercase tracking-wider">
+                  Total réponses
+                </CardDescription>
+                <CardTitle className="text-2xl font-bold tabular-nums">
+                  {totalResponses || '—'}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                <p className="truncate">
-                  {formId ? (
-                    <span className="text-foreground">{formId}</span>
-                  ) : (
-                    'Non configuré'
-                  )}
-                </p>
-              </CardContent>
             </Card>
-            <Card className="border-border/60 bg-card/70">
-              <CardHeader>
-                <CardTitle className="text-base">Edge Function</CardTitle>
-                <CardDescription>Endpoint d’import</CardDescription>
+            <Card className="border-border/40">
+              <CardHeader className="pb-2 pt-4">
+                <CardDescription className="text-xs uppercase tracking-wider">
+                  Importés
+                </CardDescription>
+                <CardTitle className="text-2xl font-bold tabular-nums text-emerald-600">
+                  {importStats?.imported ?? '—'}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                <p className="truncate">
-                  {importEndpoint ? (
-                    <span className="text-foreground">{importEndpoint}</span>
-                  ) : (
-                    'Non configuré'
-                  )}
-                </p>
-              </CardContent>
             </Card>
-            <Card className="border-border/60 bg-card/70">
-              <CardHeader>
-                <CardTitle className="text-base">Statut</CardTitle>
-                <CardDescription>Authentification</CardDescription>
+            <Card className="border-border/40">
+              <CardHeader className="pb-2 pt-4">
+                <CardDescription className="text-xs uppercase tracking-wider">
+                  Modifiés
+                </CardDescription>
+                <CardTitle className="text-2xl font-bold tabular-nums text-amber-600">
+                  {importStats?.updated ?? '—'}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center gap-2">
-                <Badge variant={accessToken ? 'success' : 'outline'}>
-                  {accessToken ? 'Connecté' : 'Non connecté'}
-                </Badge>
-                <span className="text-xs text-muted-foreground">Token actif</span>
-              </CardContent>
+            </Card>
+            <Card className="border-border/40">
+              <CardHeader className="pb-2 pt-4">
+                <CardDescription className="text-xs uppercase tracking-wider">
+                  Ignorés
+                </CardDescription>
+                <CardTitle className="text-2xl font-bold tabular-nums text-slate-500">
+                  {importStats?.skipped ?? '—'}
+                </CardTitle>
+              </CardHeader>
             </Card>
           </div>
 
           {importMutation.isSuccess ? (
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700">
-              Import effectué avec succès. Résumé ci-dessous.
+            <div className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="font-medium">Import effectué avec succès</span>
+              </div>
             </div>
           ) : null}
 
-          <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-            <Card className="border-border/60 bg-card/80">
-              <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <CardTitle>Prévisualisation des réponses</CardTitle>
-                  <CardDescription>
-                    Table des dernières réponses Google Forms.
-                  </CardDescription>
+          <div className="grid min-h-0 min-w-0 flex-1 gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+            <Card className="flex min-h-0 min-w-0 flex-col border-border/50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Prévisualisation des réponses</CardTitle>
+                    <CardDescription>
+                      Les 4 dernières réponses Google Forms
+                    </CardDescription>
+                  </div>
+                  <Badge variant={previewMutation.isSuccess ? 'success' : 'outline'}>
+                    {previewMutation.isSuccess
+                      ? `${totalResponses} total`
+                      : 'En attente'}
+                  </Badge>
                 </div>
-                <Badge variant={previewMutation.isSuccess ? 'success' : 'outline'}>
-                  {previewMutation.isSuccess
-                    ? `${totalResponses} réponses`
-                    : 'En attente'}
-                </Badge>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-3">
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    variant="secondary"
+                    size="sm"
                     onClick={() => previewMutation.mutate()}
                     disabled={previewMutation.isPending}
                   >
                     {previewMutation.isPending
                       ? 'Chargement...'
-                      : 'Prévisualiser'}
+                      : 'Charger l\'aperçu'}
                   </Button>
                   <Button
                     type="button"
+                    size="sm"
                     variant="outline"
                     onClick={() => previewMutation.mutate()}
                     disabled={previewMutation.isPending}
@@ -401,13 +417,13 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                   </Button>
                 </div>
 
-                <div className="rounded-2xl border border-border/60 bg-muted/20">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/50">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Response ID</TableHead>
-                        <TableHead>Soumis</TableHead>
-                        <TableHead>Réponses</TableHead>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="h-10">Response ID</TableHead>
+                        <TableHead className="h-10">Soumis</TableHead>
+                        <TableHead className="h-10">Réponses</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -415,7 +431,7 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                         <TableRow>
                           <TableCell
                             colSpan={3}
-                            className="text-muted-foreground"
+                            className="h-24 text-center text-muted-foreground"
                           >
                             Aucune réponse à afficher pour le moment.
                           </TableCell>
@@ -425,17 +441,17 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                           const summary = summarizeAnswers(response.answers)
                           return (
                             <TableRow key={response.responseId}>
-                              <TableCell className="font-medium">
+                              <TableCell className="py-2.5 font-mono text-xs">
                                 {response.responseId?.slice(0, 12) || '—'}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="py-2.5 text-sm">
                                 {formatDate(
                                   response.lastSubmittedTime ||
                                     response.createTime,
                                 )}
                               </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
+                              <TableCell className="py-2.5">
+                                <div className="space-y-0.5">
                                   <p className="text-sm">{summary.preview}</p>
                                   <p className="text-xs text-muted-foreground">
                                     {summary.count} champs
@@ -449,71 +465,28 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                     </TableBody>
                   </Table>
                 </div>
-
-                <details className="rounded-2xl border border-border/60 bg-card/60 px-4 py-3 text-sm">
-                  <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                    Voir le JSON brut
-                  </summary>
-                  <pre className="mt-3 max-h-72 overflow-auto text-xs leading-relaxed">
-                    {previewMutation.data
-                      ? JSON.stringify(previewMutation.data, null, 2)
-                      : 'Aucune réponse chargée.'}
-                  </pre>
-                </details>
+                <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+                  Le JSON brut est masque pour garder une vue compacte.
+                </div>
               </CardContent>
             </Card>
 
-            <div className="space-y-6">
-              <Card className="border-border/60 bg-card/80">
-                <CardHeader className="flex flex-col gap-3">
+            <div className="grid min-h-0 min-w-0 gap-4 lg:grid-rows-[auto_1fr]">
+              <Card className="flex min-h-0 min-w-0 flex-col border-border/50">
+                <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>Import Supabase</CardTitle>
-                      <CardDescription>Résultat et métriques.</CardDescription>
+                      <CardTitle>Actions d'import</CardTitle>
+                      <CardDescription>Importer et normaliser les données</CardDescription>
                     </div>
                     <Badge
                       variant={importMutation.isSuccess ? 'success' : 'outline'}
                     >
-                      {importMutation.isSuccess ? 'Succès' : 'Prêt'}
+                      {importMutation.isSuccess ? 'Terminé' : 'Prêt'}
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Total
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.total ?? '—'}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Importés
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.imported ?? '—'}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Modifiés
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.updated ?? '—'}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                        Ignorés
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {importStats?.skipped ?? '—'}
-                      </p>
-                    </div>
-                  </div>
-
+                <CardContent className="space-y-2.5">
                   <Button
                     type="button"
                     onClick={() => importMutation.mutate()}
@@ -525,30 +498,43 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
                       : 'Importer dans Supabase'}
                   </Button>
 
-                  <details className="rounded-2xl border border-border/60 bg-card/60 px-4 py-3 text-sm">
-                    <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                      Voir le résultat brut
-                    </summary>
-                    <pre className="mt-3 max-h-72 overflow-auto text-xs leading-relaxed">
-                      {importMutation.data
-                        ? JSON.stringify(importMutation.data, null, 2)
-                        : 'Aucun import lancé.'}
-                    </pre>
-                  </details>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => normalizeMutation.mutate()}
+                    disabled={normalizeMutation.isPending}
+                    className="w-full"
+                  >
+                    {normalizeMutation.isPending
+                      ? 'Normalisation...'
+                      : 'Normaliser les réponses'}
+                  </Button>
+                  <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+                    Le resultat brut est masque pour garder une vue compacte.
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-border/60 bg-card/80">
+              <Card className="flex min-h-0 min-w-0 flex-col border-border/50">
                 <CardHeader>
-                  <CardTitle className="text-base">Derniers repères</CardTitle>
+                  <CardTitle className="text-base">Aide-mémoire</CardTitle>
                   <CardDescription>
-                    Notes internes pour l’équipe.
+                    Points de vigilance avant import
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
-                  <p>• Vérifier le mapping des champs avant l’import.</p>
-                  <p>• Contrôler les doublons sur la table Supabase.</p>
-                  <p>• Mettre à jour le formulaire si besoin.</p>
+                <CardContent className="space-y-2.5">
+                  <div className="flex gap-2 text-sm">
+                    <span className="text-muted-foreground">•</span>
+                    <p className="text-muted-foreground">Vérifier le mapping des champs avant l'import</p>
+                  </div>
+                  <div className="flex gap-2 text-sm">
+                    <span className="text-muted-foreground">•</span>
+                    <p className="text-muted-foreground">Contrôler les doublons sur la table Supabase</p>
+                  </div>
+                  <div className="flex gap-2 text-sm">
+                    <span className="text-muted-foreground">•</span>
+                    <p className="text-muted-foreground">Mettre à jour le formulaire si besoin</p>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -571,3 +557,6 @@ function ImportDashboard({ accessToken, userSession, onLogout }: DashboardProps)
 }
 
 export default ImportDashboard
+
+
+

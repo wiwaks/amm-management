@@ -1,0 +1,10 @@
+[project]
+id = ""
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[functions.import-form]
+verify_jwt = true
