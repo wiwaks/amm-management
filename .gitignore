@@ -70,3 +70,4 @@ web_modules/
 .env.*
 !.env.example
 /bot_form/
+.claude

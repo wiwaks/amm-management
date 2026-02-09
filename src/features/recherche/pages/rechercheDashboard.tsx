@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   flexRender,
@@ -9,7 +9,8 @@ import {
   type ColumnDef,
   type FilterFn,
 } from '@tanstack/react-table'
-import type { UserSession } from '../../../shared/types'
+import type { GenerateInvitationResult, UserSession } from '../../../shared/types'
+import { generateInvitation } from '../../../services/supabase/invitations'
 import { Button } from '../../../shared/components/ui/button'
 import { Badge } from '../../../shared/components/ui/badge'
 import { Toast } from '../../../shared/components/ui/toast'
@@ -32,8 +33,8 @@ import {
 import { ScrollArea } from '../../../shared/components/ui/scroll-area'
 import { DataTableToolbar } from '../../../shared/components/data-table/data-table-toolbar'
 import {
-  fetchSubmissionsWithAnswers,
-  type SubmissionWithAnswers,
+  fetchSubmissionAnswers,
+  type FormSubmissionAnswer,
 } from '../../../services/supabase/formSubmissionAnswers'
 import {
   fetchFormQuestionMap,
@@ -41,6 +42,10 @@ import {
   upsertFormQuestionMap,
 } from '../../../services/supabase/formQuestionMap'
 import { fetchFormQuestionMap as fetchGoogleFormQuestionMap } from '../../../services/google/forms'
+import {
+  searchSubmissions,
+  type SearchSubmission,
+} from '../../../services/supabase/searchSubmissions'
 
 type ToastMessage = {
   title: string
@@ -54,29 +59,32 @@ interface DashboardProps {
   onLogout: () => void
 }
 
-type SubmissionRow = {
-  id: string
-  nom: string
-  prenom: string
-  telephone: string
-  email: string
+type SubmissionRow = SearchSubmission & {
   searchIndex: string
-  submission: SubmissionWithAnswers
+}
+
+type SelectedSubmission = {
+  id: string
+  email: string | null
+  phone: string | null
+  submitted_at: string | null
+  created_at: string
+  answers: FormSubmissionAnswer[]
 }
 
 const NAV_ITEMS = [
-  { label: 'Aperçu', active: false, route: null },
+  { label: 'Apercu', active: false, route: null },
   { label: 'Import', active: false, route: '/dashboard' },
   { label: 'Historique', active: false, route: null },
   { label: 'Recherche', active: true, route: '/recherche' },
   { label: 'Clients', active: false, route: null },
-  { label: 'Paramètres', active: false, route: null },
+  { label: 'Parametres', active: false, route: null },
 ]
 
-function formatDate(value?: string) {
-  if (!value) return '—'
+function formatDate(value?: string | null) {
+  if (!value) return '--'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
+  if (Number.isNaN(date.getTime())) return '--'
   return date.toLocaleString('fr-FR', {
     hour: '2-digit',
     minute: '2-digit',
@@ -85,10 +93,8 @@ function formatDate(value?: string) {
   })
 }
 
-function getAnswerValue(
-  answers: SubmissionWithAnswers['answers'],
-  questionId: string,
-): string {
+function getAnswerValue(answers: FormSubmissionAnswer[], questionId: string): string {
+  if (!questionId) return ''
   return answers
     .filter((a) => a.question_id === questionId)
     .sort((a, b) => a.answer_index - b.answer_index)
@@ -98,26 +104,30 @@ function getAnswerValue(
 }
 
 function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
   const [questionMap, setQuestionMap] = useState<FormQuestionMap[]>([])
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [selectedSubmission, setSelectedSubmission] =
-    useState<SubmissionWithAnswers | null>(null)
+    useState<SelectedSubmission | null>(null)
+  const [loadingSubmissionId, setLoadingSubmissionId] = useState<string | null>(null)
+  const [generatedDeepLink, setGeneratedDeepLink] = useState<string | null>(null)
+  const answersCacheRef = useRef<Record<string, FormSubmissionAnswer[]>>({})
+  const nameInputRef = useRef<HTMLInputElement | null>(null)
+  const emailInputRef = useRef<HTMLInputElement | null>(null)
+  const phoneInputRef = useRef<HTMLInputElement | null>(null)
 
   const searchMutation = useMutation({
-    mutationFn: async () => {
-      const trimmedEmail = email.trim()
-      const trimmedPhone = phone.trim()
-      return fetchSubmissionsWithAnswers({
-        email: trimmedEmail || undefined,
-        phone: trimmedPhone || undefined,
+    mutationFn: async (params: { name?: string; email?: string; phone?: string }) => {
+      return searchSubmissions({
+        name: params.name,
+        email: params.email,
+        phone: params.phone,
+        limit: 200,
       })
     },
     onSuccess: (data) => {
       setToast({
-        title: 'Recherche terminée',
-        description: `${data.length} réponses trouvées.`,
+        title: 'Recherche terminee',
+        description: `${data.length} reponses trouvees.`,
         variant: 'info',
       })
     },
@@ -129,6 +139,18 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
       })
     },
   })
+
+  const handleSearchClick = useCallback(() => {
+    const trimmedName = nameInputRef.current?.value.trim() ?? ''
+    const trimmedEmail = emailInputRef.current?.value.trim() ?? ''
+    const trimmedPhone = phoneInputRef.current?.value.trim() ?? ''
+
+    searchMutation.mutate({
+      name: trimmedName || undefined,
+      email: trimmedEmail || undefined,
+      phone: trimmedPhone || undefined,
+    })
+  }, [searchMutation])
 
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -142,8 +164,8 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
     onSuccess: (data) => {
       setQuestionMap(data)
       setToast({
-        title: 'Libellés mis à jour',
-        description: `${data.length} questions synchronisées.`,
+        title: 'Libelles mis a jour',
+        description: `${data.length} questions synchronisees.`,
         variant: 'success',
       })
     },
@@ -155,6 +177,73 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
       })
     },
   })
+
+  const inviteMutation = useMutation({
+    mutationFn: async (submissionId: string) => {
+      return generateInvitation(submissionId, userSession?.sessionId)
+    },
+    onSuccess: (data: GenerateInvitationResult) => {
+      if (data.invitation) {
+        setGeneratedDeepLink(data.invitation.deepLink)
+        setToast({
+          title: data.reused ? 'Invitation existante' : 'Invitation creee',
+          description: data.reused
+            ? 'Un lien valide existait deja pour ce client.'
+            : "Le lien d'invitation a ete genere.",
+          variant: 'success',
+        })
+      }
+    },
+    onError: (error) => {
+      setToast({
+        title: "Erreur d'invitation",
+        description: error.message,
+        variant: 'error',
+      })
+    },
+  })
+
+  const handleOpenSubmission = useCallback(async (submission: SearchSubmission) => {
+    setGeneratedDeepLink(null)
+
+    const cachedAnswers = answersCacheRef.current[submission.id]
+    if (cachedAnswers) {
+      setSelectedSubmission({
+        id: submission.id,
+        email: submission.email,
+        phone: submission.phone || submission.telephone || null,
+        submitted_at: submission.submitted_at,
+        created_at: submission.created_at,
+        answers: cachedAnswers,
+      })
+      return
+    }
+
+    setLoadingSubmissionId(submission.id)
+    try {
+      const answers = await fetchSubmissionAnswers(submission.id)
+      answersCacheRef.current[submission.id] = answers
+      setSelectedSubmission({
+        id: submission.id,
+        email: submission.email,
+        phone: submission.phone || submission.telephone || null,
+        submitted_at: submission.submitted_at,
+        created_at: submission.created_at,
+        answers,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setToast({
+        title: 'Erreur de chargement',
+        description: message,
+        variant: 'error',
+      })
+    } finally {
+      setLoadingSubmissionId((current) =>
+        current === submission.id ? null : current,
+      )
+    }
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -179,62 +268,25 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
 
   const submissions = searchMutation.data ?? []
 
-  const fieldQuestionIds = useMemo(() => {
-    const findByKeywords = (keywords: string[], exclude: string[] = []) => {
-      for (const question of questionMap) {
-        const label = question.label.toLowerCase()
-        if (exclude.some((term) => label.includes(term))) continue
-        if (keywords.some((term) => label.includes(term))) {
-          return question.question_id
-        }
-      }
-      return undefined
-    }
-
-    return {
-      lastName: findByKeywords(['nom de famille', 'nom'], ['prenom', 'prénom']),
-      firstName: findByKeywords(['prénom', 'prenom']),
-      phone: findByKeywords([
-        'téléphone',
-        'telephone',
-        'portable',
-        'mobile',
-        'numéro',
-        'numero',
-      ]),
-    }
-  }, [questionMap])
-
   const tableData = useMemo<SubmissionRow[]>(() => {
     return submissions.map((submission) => {
-      const nom = getAnswerValue(
-        submission.answers,
-        fieldQuestionIds.lastName ?? '',
-      )
-      const prenom = getAnswerValue(
-        submission.answers,
-        fieldQuestionIds.firstName ?? '',
-      )
-      const telephone =
-        submission.phone ||
-        getAnswerValue(submission.answers, fieldQuestionIds.phone ?? '')
-      const emailValue = submission.email ?? ''
-      const searchIndex = [nom, prenom, telephone, emailValue]
+      const searchIndex = [
+        submission.nom,
+        submission.prenom,
+        submission.telephone,
+        submission.email ?? '',
+        submission.phone ?? '',
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
 
       return {
-        id: submission.id,
-        nom,
-        prenom,
-        telephone,
-        email: emailValue,
+        ...submission,
         searchIndex,
-        submission,
       }
     })
-  }, [fieldQuestionIds, submissions])
+  }, [submissions])
 
   const columns = useMemo<ColumnDef<SubmissionRow>[]>(
     () => [
@@ -264,21 +316,25 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => setSelectedSubmission(row.original.submission)}
+            disabled={loadingSubmissionId === row.original.id}
+            onClick={() => void handleOpenSubmission(row.original)}
           >
-            Voir tout
+            {loadingSubmissionId === row.original.id ? 'Chargement...' : 'Voir tout'}
           </Button>
         ),
       },
     ],
-    [setSelectedSubmission],
+    [handleOpenSubmission, loadingSubmissionId],
   )
 
-  const globalFilterFn: FilterFn<SubmissionRow> = (row, _columnId, filterValue) => {
-    const term = String(filterValue ?? '').trim().toLowerCase()
-    if (!term) return true
-    return row.original.searchIndex.includes(term)
-  }
+  const globalFilterFn: FilterFn<SubmissionRow> = useCallback(
+    (row, _columnId, filterValue) => {
+      const term = String(filterValue ?? '').trim().toLowerCase()
+      if (!term) return true
+      return row.original.searchIndex.includes(term)
+    },
+    [],
+  )
 
   const table = useReactTable({
     data: tableData,
@@ -311,7 +367,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
             <div className="space-y-3">
               <Logo subtitle="Back office" />
               <p className="text-sm text-muted-foreground">
-                Recherche rapide dans les réponses normalisées.
+                Recherche rapide dans les reponses normalisees.
               </p>
             </div>
 
@@ -342,7 +398,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
               </p>
               <p className="text-muted-foreground">Besoin d'aide ?</p>
               <Button variant="secondary" size="sm" className="w-full">
-                Contacter l'équipe
+                Contacter l'equipe
               </Button>
             </div>
           </div>
@@ -361,18 +417,18 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                 Recherche de clients
               </h1>
               <p className="max-w-2xl text-sm text-muted-foreground">
-                Recherchez par email ou téléphone, consultez les réponses complètes.
+                Recherchez par nom, email ou telephone puis ouvrez la fiche client.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="outline">
-                Session {userSession?.sessionId.slice(0, 8) ?? '—'}
+                Session {userSession?.sessionId.slice(0, 8) ?? '--'}
               </Badge>
               {sessionExpiry ? (
                 <Badge variant="warning">Expire {sessionExpiry}</Badge>
               ) : null}
               <Button variant="outline" size="sm" onClick={onLogout}>
-                Se déconnecter
+                Se deconnecter
               </Button>
             </div>
           </header>
@@ -397,31 +453,40 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
             <CardHeader>
               <CardTitle>Filtres de recherche</CardTitle>
               <CardDescription>
-                Recherchez par email ou téléphone, ou laissez vide pour tout afficher.
+                Recherchez par nom, email ou telephone. Laissez vide pour tout afficher.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="min-w-0">
+                  <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                    Nom / Prenom
+                  </label>
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                    placeholder="ex: Dupont"
+                  />
+                </div>
                 <div className="min-w-0">
                   <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                     Email
                   </label>
                   <input
+                    ref={emailInputRef}
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
                     className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
                     placeholder="ex: jane@email.com"
                   />
                 </div>
                 <div className="min-w-0">
                   <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                    Téléphone
+                    Telephone
                   </label>
                   <input
+                    ref={phoneInputRef}
                     type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
                     className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
                     placeholder="ex: 06 12 34 56 78"
                   />
@@ -431,7 +496,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
-                  onClick={() => searchMutation.mutate()}
+                  onClick={handleSearchClick}
                   disabled={searchMutation.isPending}
                 >
                   {searchMutation.isPending ? 'Recherche...' : 'Rechercher'}
@@ -443,19 +508,20 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                   disabled={syncMutation.isPending}
                 >
                   {syncMutation.isPending
-                    ? 'Mise à jour...'
-                    : 'Mettre à jour les libellés'}
+                    ? 'Mise a jour...'
+                    : 'Mettre a jour les libelles'}
                 </Button>
               </div>
             </CardContent>
           </Card>
+
           <Card className="flex min-h-0 min-w-0 flex-1 flex-col border-border/60 bg-card/80">
             <CardHeader>
               <CardTitle>
                 Resultats {filteredCount} / {submissions.length}
               </CardTitle>
               <CardDescription>
-                Cliquez sur "Voir tout" pour afficher les reponses completes.
+                Cliquez sur "Voir tout" pour charger les reponses completes.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
@@ -467,49 +533,49 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <Table>
-                  <TableHeader>
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id}>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {tableData.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          {searchMutation.isPending
-                            ? 'Recherche en cours...'
-                            : 'Aucun resultat. Cliquez sur "Rechercher" pour commencer.'}
-                        </TableCell>
-                      </TableRow>
-                    ) : table.getRowModel().rows.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          Aucun resultat pour ce filtre.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      table.getRowModel().rows.map((row) => (
-                        <TableRow key={row.id}>
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id} className="py-2.5">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
+                    <TableHeader>
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
+                            </TableHead>
                           ))}
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {tableData.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            {searchMutation.isPending
+                              ? 'Recherche en cours...'
+                              : 'Aucun resultat. Cliquez sur "Rechercher" pour commencer.'}
+                          </TableCell>
+                        </TableRow>
+                      ) : table.getRowModel().rows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            Aucun resultat pour ce filtre.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        table.getRowModel().rows.map((row) => (
+                          <TableRow key={row.id}>
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id} className="py-2.5">
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
                   </Table>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3 text-sm">
@@ -563,77 +629,114 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
             <div className="z-10 flex items-center justify-between border-b border-border bg-background/95 p-4 backdrop-blur sm:p-6">
               <div>
                 <h2 className="font-display text-2xl font-semibold">
-                  Réponses complètes
+                  Reponses completes
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {selectedSubmission.email || selectedSubmission.phone || 'Client'}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedSubmission(null)}
-              >
-                Fermer
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => inviteMutation.mutate(selectedSubmission.id)}
+                  disabled={inviteMutation.isPending}
+                >
+                  {inviteMutation.isPending ? 'Generation...' : 'Inviter'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedSubmission(null)
+                    setGeneratedDeepLink(null)
+                  }}
+                >
+                  Fermer
+                </Button>
+              </div>
             </div>
 
             <ScrollArea className="min-h-0 flex-1">
               <div className="space-y-4 p-4 sm:p-6">
-              <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Soumis le
-                    </p>
-                    <p className="font-medium">
-                      {formatDate(
-                        selectedSubmission.submitted_at ??
-                          selectedSubmission.created_at,
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Email
-                    </p>
-                    <p className="font-medium">
-                      {selectedSubmission.email || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Téléphone
-                    </p>
-                    <p className="font-medium">
-                      {selectedSubmission.phone || '—'}
-                    </p>
+                <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Soumis le
+                      </p>
+                      <p className="font-medium">
+                        {formatDate(
+                          selectedSubmission.submitted_at ??
+                            selectedSubmission.created_at,
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Email
+                      </p>
+                      <p className="font-medium">{selectedSubmission.email || '--'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Telephone
+                      </p>
+                      <p className="font-medium">{selectedSubmission.phone || '--'}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                {questionMap.map((question) => {
-                  const value = getAnswerValue(
-                    selectedSubmission.answers,
-                    question.question_id,
-                  )
-                  if (!value) return null
-
-                  return (
-                    <div
-                      key={question.question_id}
-                      className="rounded-2xl border border-border/60 bg-card p-4"
-                    >
-                      <p className="mb-2 font-semibold text-foreground">
-                        {question.label}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{value}</p>
+                {generatedDeepLink ? (
+                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
+                      Lien d'invitation (deep link)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 rounded-lg bg-background px-3 py-2 text-sm font-mono break-all">
+                        {generatedDeepLink}
+                      </code>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedDeepLink)
+                          setToast({
+                            title: 'Copie',
+                            description: 'Le lien a ete copie dans le presse-papier.',
+                            variant: 'info',
+                          })
+                        }}
+                      >
+                        Copier
+                      </Button>
                     </div>
-                  )
-                })}
-              </div>
+                  </div>
+                ) : null}
+
+                <div className="space-y-3">
+                  {questionMap.map((question) => {
+                    const value = getAnswerValue(
+                      selectedSubmission.answers,
+                      question.question_id,
+                    )
+                    if (!value) return null
+
+                    return (
+                      <div
+                        key={question.question_id}
+                        className="rounded-2xl border border-border/60 bg-card p-4"
+                      >
+                        <p className="mb-2 font-semibold text-foreground">
+                          {question.label}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{value}</p>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </ScrollArea>
           </div>
@@ -644,4 +747,3 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
 }
 
 export default RechercheDashboard
-

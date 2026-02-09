@@ -8,3 +8,9 @@ schemas = ["public"]
 
 [functions.import-form]
 verify_jwt = true
+
+[functions.generate-invitation]
+verify_jwt = true
+
+[functions.search-submissions]
+verify_jwt = true

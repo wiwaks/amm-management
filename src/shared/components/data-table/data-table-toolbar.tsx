@@ -1,5 +1,5 @@
 import type { Table } from '@tanstack/react-table'
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { DataTableFacetedFilter } from './data-table-faceted-filter'
 import { DataTableViewOptions } from './data-table-view-options'
@@ -33,8 +33,10 @@ export function DataTableToolbar<TData>({
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      table.setGlobalFilter(searchValue)
-    }, 300)
+      startTransition(() => {
+        table.setGlobalFilter(searchValue)
+      })
+    }, 400)
     return () => clearTimeout(timer)
   }, [searchValue, table])
 
