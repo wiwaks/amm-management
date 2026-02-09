@@ -103,6 +103,16 @@ function getAnswerValue(answers: FormSubmissionAnswer[], questionId: string): st
     .join(', ')
 }
 
+const REQUIRED_ENV = {
+  VITE_SEARCH_SUBMISSIONS_ENDPOINT: import.meta.env.VITE_SEARCH_SUBMISSIONS_ENDPOINT as string | undefined,
+  VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined,
+  VITE_GOOGLE_FORM_ID: import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined,
+}
+
+const missingEnvVars = Object.entries(REQUIRED_ENV)
+  .filter(([, value]) => !value)
+  .map(([key]) => key)
+
 function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
   const [questionMap, setQuestionMap] = useState<FormQuestionMap[]>([])
   const [toast, setToast] = useState<ToastMessage | null>(null)
@@ -493,11 +503,17 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                 </div>
               </div>
 
+              {missingEnvVars.length > 0 && (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  Variables d'environnement manquantes : {missingEnvVars.join(', ')}
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
                   onClick={handleSearchClick}
-                  disabled={searchMutation.isPending}
+                  disabled={searchMutation.isPending || missingEnvVars.length > 0}
                 >
                   {searchMutation.isPending ? 'Recherche...' : 'Rechercher'}
                 </Button>
@@ -505,7 +521,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                   type="button"
                   variant="secondary"
                   onClick={() => syncMutation.mutate()}
-                  disabled={syncMutation.isPending}
+                  disabled={syncMutation.isPending || missingEnvVars.length > 0}
                 >
                   {syncMutation.isPending
                     ? 'Mise a jour...'
