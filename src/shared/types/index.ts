@@ -18,3 +18,18 @@ export type UserSession = {
   createdAt: string // Timestamp ISO de création de la session
   expiresAt: string // Timestamp ISO d'expiration de la session
 }
+
+export type Invitation = {
+  id: string
+  token: string
+  status: 'pending' | 'accepted' | 'expired'
+  expiresAt: string
+  deepLink: string
+}
+
+export type GenerateInvitationResult = {
+  ok: boolean
+  invitation?: Invitation
+  reused?: boolean
+  error?: string
+}

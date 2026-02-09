@@ -148,7 +148,26 @@ export type SubmissionWithAnswers = {
 export async function fetchSubmissionsWithAnswers(params: {
   email?: string
   phone?: string
+  name?: string
+  limit?: number
 } = {}): Promise<SubmissionWithAnswers[]> {
+  const maxResults = params.limit ?? 200
+
+  // Si recherche par nom/prénom, d'abord trouver les submission_id correspondants
+  let nameSubmissionIds: string[] | undefined
+  if (params.name) {
+    const { data: matchingAnswers, error: ansError } = await supabase
+      .from('form_submission_answers')
+      .select('submission_id')
+      .ilike('value_text', `%${params.name}%`)
+
+    if (ansError) throw new Error(ansError.message)
+    nameSubmissionIds = [
+      ...new Set((matchingAnswers ?? []).map((a) => a.submission_id as string)),
+    ]
+    if (nameSubmissionIds.length === 0) return []
+  }
+
   let query = supabase
     .from('form_submissions')
     .select(
@@ -156,6 +175,11 @@ export async function fetchSubmissionsWithAnswers(params: {
        form_submission_answers (question_id, answer_index, value_text)`,
     )
     .order('created_at', { ascending: false })
+    .limit(maxResults)
+
+  if (nameSubmissionIds) {
+    query = query.in('id', nameSubmissionIds)
+  }
 
   if (params.email) {
     query = query.ilike('email', `%${params.email}%`)

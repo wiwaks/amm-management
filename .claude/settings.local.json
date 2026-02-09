@@ -5,7 +5,8 @@
       "Bash(node_modules.bintsc:*)",
       "Bash(cmd /c \"where node\")",
       "Bash(cmd /c \"node --version\")",
-      "Bash(cmd /c \"mkdir c:\\\\Users\\\\mkier\\\\Documents\\\\DEV\\\\amm-management\\\\supabase\\\\functions\\\\_shared\")"
+      "Bash(cmd /c \"mkdir c:\\\\Users\\\\mkier\\\\Documents\\\\DEV\\\\amm-management\\\\supabase\\\\functions\\\\_shared\")",
+      "Bash(cmd /c \"cd /d c:\\\\Users\\\\mkier\\\\Documents\\\\DEV\\\\amm-management && npx tsc --noEmit 2>&1\")"
     ]
   }
 }

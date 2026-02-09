@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   flexRender,
@@ -9,7 +9,8 @@ import {
   type ColumnDef,
   type FilterFn,
 } from '@tanstack/react-table'
-import type { UserSession } from '../../../shared/types'
+import type { GenerateInvitationResult, UserSession } from '../../../shared/types'
+import { generateInvitation } from '../../../services/supabase/invitations'
 import { Button } from '../../../shared/components/ui/button'
 import { Badge } from '../../../shared/components/ui/badge'
 import { Toast } from '../../../shared/components/ui/toast'
@@ -98,18 +99,22 @@ function getAnswerValue(
 }
 
 function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [questionMap, setQuestionMap] = useState<FormQuestionMap[]>([])
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [selectedSubmission, setSelectedSubmission] =
     useState<SubmissionWithAnswers | null>(null)
+  const [generatedDeepLink, setGeneratedDeepLink] = useState<string | null>(null)
 
   const searchMutation = useMutation({
     mutationFn: async () => {
+      const trimmedName = name.trim()
       const trimmedEmail = email.trim()
       const trimmedPhone = phone.trim()
       return fetchSubmissionsWithAnswers({
+        name: trimmedName || undefined,
         email: trimmedEmail || undefined,
         phone: trimmedPhone || undefined,
       })
@@ -150,6 +155,31 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
     onError: (error) => {
       setToast({
         title: 'Erreur de synchronisation',
+        description: error.message,
+        variant: 'error',
+      })
+    },
+  })
+
+  const inviteMutation = useMutation({
+    mutationFn: async (submissionId: string) => {
+      return generateInvitation(submissionId, userSession?.sessionId)
+    },
+    onSuccess: (data: GenerateInvitationResult) => {
+      if (data.invitation) {
+        setGeneratedDeepLink(data.invitation.deepLink)
+        setToast({
+          title: data.reused ? 'Invitation existante' : 'Invitation créée',
+          description: data.reused
+            ? 'Un lien valide existait déjà pour ce client.'
+            : 'Le lien d\'invitation a été généré.',
+          variant: 'success',
+        })
+      }
+    },
+    onError: (error) => {
+      setToast({
+        title: 'Erreur d\'invitation',
         description: error.message,
         variant: 'error',
       })
@@ -274,11 +304,14 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
     [setSelectedSubmission],
   )
 
-  const globalFilterFn: FilterFn<SubmissionRow> = (row, _columnId, filterValue) => {
-    const term = String(filterValue ?? '').trim().toLowerCase()
-    if (!term) return true
-    return row.original.searchIndex.includes(term)
-  }
+  const globalFilterFn: FilterFn<SubmissionRow> = useCallback(
+    (row, _columnId, filterValue) => {
+      const term = String(filterValue ?? '').trim().toLowerCase()
+      if (!term) return true
+      return row.original.searchIndex.includes(term)
+    },
+    [],
+  )
 
   const table = useReactTable({
     data: tableData,
@@ -397,11 +430,23 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
             <CardHeader>
               <CardTitle>Filtres de recherche</CardTitle>
               <CardDescription>
-                Recherchez par email ou téléphone, ou laissez vide pour tout afficher.
+                Recherchez par nom, email ou telephone. Laissez vide pour tout afficher.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="min-w-0">
+                  <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                    Nom / Prenom
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                    placeholder="ex: Dupont"
+                  />
+                </div>
                 <div className="min-w-0">
                   <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                     Email
@@ -416,7 +461,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                 </div>
                 <div className="min-w-0">
                   <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                    Téléphone
+                    Telephone
                   </label>
                   <input
                     type="tel"
@@ -569,14 +614,27 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                   {selectedSubmission.email || selectedSubmission.phone || 'Client'}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedSubmission(null)}
-              >
-                Fermer
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => inviteMutation.mutate(selectedSubmission.id)}
+                  disabled={inviteMutation.isPending}
+                >
+                  {inviteMutation.isPending ? 'Génération...' : 'Inviter'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedSubmission(null)
+                    setGeneratedDeepLink(null)
+                  }}
+                >
+                  Fermer
+                </Button>
+              </div>
             </div>
 
             <ScrollArea className="min-h-0 flex-1">
@@ -612,6 +670,34 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                   </div>
                 </div>
               </div>
+
+              {generatedDeepLink ? (
+                <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
+                    Lien d'invitation (deep link)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded-lg bg-background px-3 py-2 text-sm font-mono break-all">
+                      {generatedDeepLink}
+                    </code>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedDeepLink)
+                        setToast({
+                          title: 'Copié',
+                          description: 'Le lien a été copié dans le presse-papier.',
+                          variant: 'info',
+                        })
+                      }}
+                    >
+                      Copier
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="space-y-3">
                 {questionMap.map((question) => {
