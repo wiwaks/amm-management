@@ -26,8 +26,16 @@
     --input: 336 24% 86%;
     --ring: 338 65% 52%;
     --radius: 1.2rem;
-    --app-max-width: 1440px;
-    --app-gutter: 24px;
+
+    /* Sidebar - rose theme */
+    --sidebar-background: 340 45% 97%;
+    --sidebar-foreground: 338 25% 18%;
+    --sidebar-primary: 338 65% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 336 35% 92%;
+    --sidebar-accent-foreground: 338 25% 20%;
+    --sidebar-border: 336 24% 86%;
+    --sidebar-ring: 338 65% 52%;
   }
 
   * {
@@ -37,15 +45,7 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
-    min-height: 100vh;
     min-height: 100dvh;
-    height: 100vh;
-    height: 100dvh;
-    display: flex;
-    justify-content: center;
-    align-items: stretch;
-    padding: var(--app-gutter);
-    overflow: hidden;
     background-image:
       radial-gradient(circle at 12% 18%, rgba(236, 160, 190, 0.22), transparent 45%),
       radial-gradient(circle at 82% 0%, rgba(214, 129, 175, 0.18), transparent 40%),
@@ -53,11 +53,7 @@
   }
 
   #root {
-    width: min(var(--app-max-width), calc(100vw - (var(--app-gutter) * 2)));
-    height: calc(100vh - (var(--app-gutter) * 2));
-    height: calc(100dvh - (var(--app-gutter) * 2));
-    min-height: 0;
-    overflow: hidden;
+    min-height: 100dvh;
   }
 
   pre {
@@ -70,27 +66,5 @@
   h2,
   h3 {
     @apply font-display;
-  }
-}
-
-@media (max-width: 768px) {
-  :root {
-    --app-gutter: 12px;
-  }
-
-  body {
-    height: auto;
-    overflow-x: hidden;
-    overflow-y: auto;
-    align-items: flex-start;
-  }
-
-  #root {
-    width: 100%;
-    max-width: 100%;
-    height: auto;
-    min-height: calc(100vh - (var(--app-gutter) * 2));
-    min-height: calc(100dvh - (var(--app-gutter) * 2));
-    overflow: visible;
   }
 }

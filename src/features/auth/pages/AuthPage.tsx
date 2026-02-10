@@ -130,7 +130,7 @@ function AuthPage() {
     : null
 
   return (
-    <div className="relative h-full overflow-x-hidden overflow-y-auto">
+    <div className="relative min-h-[100dvh] overflow-x-hidden">
       <div className="pointer-events-none absolute -top-40 right-0 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 left-0 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
 
