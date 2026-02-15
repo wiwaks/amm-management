@@ -154,8 +154,21 @@ function parseHeightCm(value: string): number | null {
 
 function parseBoolean(value: string): boolean | null {
   const lower = value.toLowerCase().trim();
-  if (lower === "oui" || lower === "yes" || lower === "true") return true;
-  if (lower === "non" || lower === "no" || lower === "false") return false;
+  if (lower.startsWith("oui") || lower === "yes" || lower === "true") return true;
+  if (lower.startsWith("non") || lower === "no" || lower === "false") return false;
+  return null;
+}
+
+function parseChildren(value: string): { children_has: boolean; children_count: number | null } | null {
+  const lower = value.toLowerCase().trim();
+  if (lower.startsWith("non") || lower === "no" || lower === "false") {
+    return { children_has: false, children_count: null };
+  }
+  if (lower.startsWith("oui") || lower === "yes" || lower === "true") {
+    const match = value.match(/(\d+)/);
+    const count = match ? parseInt(match[1], 10) : null;
+    return { children_has: true, children_count: count };
+  }
   return null;
 }
 
@@ -272,7 +285,18 @@ Deno.serve(async (req: Request) => {
         value = parseHeightCm(answer.value_text);
       } else if (field === "age_years") {
         value = parseAge(answer.value_text);
-      } else if (field === "children_has" || field === "smoker" || field === "has_vehicle") {
+      } else if (field === "children_has") {
+        const parsed = parseChildren(answer.value_text);
+        if (parsed) {
+          profileData["children_has"] = parsed.children_has;
+          mappedFields.push("children_has");
+          if (parsed.children_count !== null) {
+            profileData["children_count"] = parsed.children_count;
+            mappedFields.push("children_count");
+          }
+        }
+        continue;
+      } else if (field === "smoker" || field === "has_vehicle") {
         value = parseBoolean(answer.value_text);
       } else if (field === "gender") {
         value = parseGender(answer.value_text);

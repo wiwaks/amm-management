@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation } from '@tanstack/react-query'
 import {
   type ColumnDef,
@@ -34,7 +35,6 @@ import {
   CardHeader,
   CardTitle,
 } from '../../../shared/components/ui/card'
-import { ScrollArea } from '../../../shared/components/ui/scroll-area'
 import {
   Table,
   TableBody,
@@ -547,135 +547,164 @@ function RechercheDashboard() {
         </Card>
       </div>
 
-      {toast ? (
-        <div className="fixed right-6 top-16 z-50 flex w-full max-w-sm flex-col gap-3">
-          <Toast
-            title={toast.title}
-            description={toast.description}
-            variant={toast.variant}
-            onClose={() => setToast(null)}
-          />
-        </div>
-      ) : null}
+      {toast
+        ? createPortal(
+            <div className="fixed right-6 top-16 z-50 flex w-full max-w-sm flex-col gap-3">
+              <Toast
+                title={toast.title}
+                description={toast.description}
+                variant={toast.variant}
+                onClose={() => setToast(null)}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
 
-      {selectedSubmission ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="relative flex h-[calc(100vh-2rem)] h-[calc(100dvh-2rem)] w-full max-w-none flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:h-[min(92vh,900px)] sm:h-[min(92dvh,900px)] sm:w-[min(94vw,1200px)] sm:rounded-3xl xl:w-[min(90vw,1320px)]">
-            <div className="z-10 flex items-center justify-between border-b border-border bg-background/95 p-4 backdrop-blur sm:p-6">
-              <div>
-                <h2 className="font-display text-2xl font-semibold">
-                  Reponses completes
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {selectedSubmission.email || selectedSubmission.phone || 'Client'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => inviteMutation.mutate(selectedSubmission.id)}
-                  disabled={inviteMutation.isPending}
-                >
-                  {inviteMutation.isPending ? 'Generation...' : 'Inviter'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedSubmission(null)
-                    setGeneratedDeepLink(null)
-                  }}
-                >
-                  Fermer
-                </Button>
-              </div>
-            </div>
-
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="space-y-4 p-4 sm:p-6">
-                <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Soumis le
-                      </p>
-                      <p className="font-medium">
-                        {formatDate(
-                          selectedSubmission.submitted_at ?? selectedSubmission.created_at,
-                        )}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Email
-                      </p>
-                      <p className="font-medium">{selectedSubmission.email || '--'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Telephone
-                      </p>
-                      <p className="font-medium">{selectedSubmission.phone || '--'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {generatedDeepLink ? (
-                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
-                      Lien d invitation (deep link)
+      {selectedSubmission
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className="relative flex h-[calc(100vh-2rem)] h-[calc(100dvh-2rem)] w-full max-w-none flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:h-[min(92vh,900px)] sm:h-[min(92dvh,900px)] sm:w-[min(94vw,1200px)] sm:rounded-3xl xl:w-[min(90vw,1320px)]">
+                <div className="z-10 flex items-center justify-between border-b border-border bg-background/95 p-4 backdrop-blur sm:p-6">
+                  <div>
+                    <h2 className="font-display text-2xl font-semibold">
+                      Reponses completes
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedSubmission.email || selectedSubmission.phone || 'Client'}
                     </p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 rounded-lg bg-background px-3 py-2 text-sm font-mono break-all">
-                        {generatedDeepLink}
-                      </code>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          navigator.clipboard.writeText(generatedDeepLink)
-                          setToast({
-                            title: 'Copie',
-                            description: 'Le lien a ete copie dans le presse-papier.',
-                            variant: 'info',
-                          })
-                        }}
-                      >
-                        Copier
-                      </Button>
-                    </div>
                   </div>
-                ) : null}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => inviteMutation.mutate(selectedSubmission.id)}
+                      disabled={inviteMutation.isPending}
+                    >
+                      {inviteMutation.isPending ? 'Generation...' : 'Inviter'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedSubmission(null)
+                        setGeneratedDeepLink(null)
+                      }}
+                    >
+                      Fermer
+                    </Button>
+                  </div>
+                </div>
 
-                <div className="space-y-3">
-                  {questionMap.map((question) => {
-                    const value = getAnswerValue(
-                      selectedSubmission.answers,
-                      question.question_id,
-                    )
-                    if (!value) return null
-
-                    return (
-                      <div
-                        key={question.question_id}
-                        className="rounded-2xl border border-border/60 bg-card p-4"
-                      >
-                        <p className="mb-2 font-semibold text-foreground">
-                          {question.label}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{value}</p>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="space-y-4 p-4 sm:p-6">
+                    <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Soumis le
+                          </p>
+                          <p className="font-medium">
+                            {formatDate(
+                              selectedSubmission.submitted_at ??
+                                selectedSubmission.created_at,
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Email
+                          </p>
+                          <p className="font-medium">
+                            {selectedSubmission.email || '--'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Telephone
+                          </p>
+                          <p className="font-medium">
+                            {selectedSubmission.phone || '--'}
+                          </p>
+                        </div>
                       </div>
-                    )
-                  })}
+                    </div>
+
+                    {generatedDeepLink ? (
+                      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
+                          Lien d invitation (deep link)
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 rounded-lg bg-background px-3 py-2 text-sm font-mono break-all">
+                            {generatedDeepLink}
+                          </code>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              navigator.clipboard.writeText(generatedDeepLink)
+                              setToast({
+                                title: 'Copie',
+                                description:
+                                  'Le lien a ete copie dans le presse-papier.',
+                                variant: 'info',
+                              })
+                            }}
+                          >
+                            Copier
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {(() => {
+                      const answerCards = questionMap
+                        .map((question) => {
+                          const value = getAnswerValue(
+                            selectedSubmission.answers,
+                            question.question_id,
+                          )
+                          if (!value) return null
+                          return (
+                            <div
+                              key={question.question_id}
+                              className="rounded-2xl border border-border/60 bg-card p-4"
+                            >
+                              <p className="mb-2 font-semibold text-foreground">
+                                {question.label}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {value}
+                              </p>
+                            </div>
+                          )
+                        })
+                        .filter(Boolean)
+
+                      if (answerCards.length === 0) {
+                        return (
+                          <div className="rounded-2xl border border-border/60 bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                            {questionMap.length === 0
+                              ? 'Aucun libelle charge. Cliquez sur "Mettre a jour les libelles" pour synchroniser.'
+                              : `Aucune reponse trouvee (${selectedSubmission.answers.length} reponse(s) brute(s), ${questionMap.length} libelle(s)).`}
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div className="space-y-3">{answerCards}</div>
+                      )
+                    })()}
+                  </div>
                 </div>
               </div>
-            </ScrollArea>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   )
 }
