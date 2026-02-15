@@ -10,48 +10,87 @@ const corsHeaders = {
 // ---- Question label → profile column mapping ----
 // Must match actual profiles table columns from MDD
 
+// IMPORTANT: order matters — more specific rules MUST come before generic ones
+// to avoid false positives (e.g. "professionnellement" matching "profession")
 const LABEL_TO_FIELD: Array<{
   match: (label: string) => boolean;
   field: string;
 }> = [
+  // ── Identité ──
   {
+    // "Prénom"
     match: (l) =>
-      (l.includes("prénom") || l.includes("prenom") || l.includes("first name")) &&
-      !l.includes("nom de famille"),
+      l === "prénom" || l === "prenom" ||
+      ((l.includes("prénom") || l.includes("prenom")) && !l.includes("nom de famille")),
     field: "first_name",
   },
   {
+    // "Nom"
     match: (l) =>
-      (l.includes("nom de famille") || l.includes("last name")) ||
-      (l.includes("nom") && !l.includes("prénom") && !l.includes("prenom") && !l.includes("surnom")),
+      l === "nom" ||
+      l.includes("nom de famille") ||
+      (l.includes("nom") && !l.includes("prénom") && !l.includes("prenom") && !l.includes("surnom") && !l.includes("astro")),
     field: "last_name",
   },
   {
-    match: (l) => l.includes("date de naissance") || l.includes("birth"),
-    field: "birthdate",
+    // "Âge"
+    match: (l) => l === "âge" || l === "age",
+    field: "age_years",
   },
   {
-    match: (l) => l.includes("sexe") || l.includes("genre") || l.includes("gender"),
+    // "Êtes-vous :" → "Un homme" / "Une femme"
+    match: (l) => l.startsWith("êtes-vous") || l.includes("sexe") || l.includes("genre") || l.includes("gender"),
     field: "gender",
   },
   {
+    // "Où vivez-vous actuellement ?"
     match: (l) =>
-      l.includes("ville") || l.includes("commune") || l.includes("city") || l.includes("résidence"),
+      l.includes("vivez-vous") || l.includes("habitez") ||
+      l.includes("ville") || l.includes("commune") || l.includes("résidence"),
     field: "city",
   },
   {
+    // "Quelle est votre profession ?" — must NOT match "professionnellement"
     match: (l) =>
-      l.includes("profession") || l.includes("métier") || l.includes("activité professionnelle"),
+      (l.includes("profession") && !l.includes("professionnellement")) ||
+      l.includes("métier") || l.includes("activité professionnelle"),
     field: "profession",
+  },
+  {
+    // "Avez-vous déjà été marié ?"
+    match: (l) => l.includes("marié"),
+    field: "relationship_status",
+  },
+  {
+    // "Diriez-vous que votre style de vie est plutôt :"
+    match: (l) => l.includes("style de vie"),
+    field: "bio_short",
+  },
+
+  // ── Physique ──
+  {
+    // "Nous vous invitons à vous présenter brièvement physiquement..."
+    match: (l) => l.includes("présenter") && l.includes("physique"),
+    field: "bio_long",
   },
   {
     match: (l) => l.includes("taille") || l.includes("height"),
     field: "height_cm",
   },
+
+  // ── Famille ──
   {
-    match: (l) => l.includes("enfant") || l.includes("children"),
+    // "Souhaitez-vous avoir des enfants à l'avenir ?"
+    match: (l) => l.includes("souhaitez") && l.includes("enfant"),
+    field: "wants_children_text",
+  },
+  {
+    // "Avez-vous des enfants ? Si oui, combien..."
+    match: (l) => l.includes("avez-vous des enfant"),
     field: "children_has",
   },
+
+  // ── Style de vie ──
   {
     match: (l) => l.includes("tabac") || l.includes("fume") || l.includes("smoking"),
     field: "smoker",
@@ -61,33 +100,34 @@ const LABEL_TO_FIELD: Array<{
     field: "alcohol",
   },
   {
-    match: (l) =>
-      l.includes("décri") || l.includes("présent") || l.includes("à propos") || l.includes("bio"),
-    field: "bio_short",
-  },
-  {
-    match: (l) => l.includes("signe") && l.includes("astro"),
-    field: "zodiac_sign",
-  },
-  {
-    match: (l) => l.includes("religion"),
-    field: "religion",
+    match: (l) => l.includes("sport"),
+    field: "sport_frequency",
   },
   {
     match: (l) => l.includes("véhicule") || l.includes("voiture") || l.includes("permis"),
     field: "has_vehicle",
   },
+
+  // ── Croyances ──
   {
-    match: (l) => l.includes("situation") && (l.includes("matrimonial") || l.includes("amoureuse")),
-    field: "relationship_status",
+    // "Signe astrologique"
+    match: (l) => l.includes("signe") && l.includes("astro"),
+    field: "zodiac_sign",
+  },
+  {
+    // "Quelle est votre religion :" (not "Religieusement" or "Confession religieuse")
+    match: (l) => l.includes("votre religion"),
+    field: "religion",
+  },
+
+  // ── Situation ──
+  {
+    match: (l) => l.includes("situation financière"),
+    field: "financial_note",
   },
   {
     match: (l) => l.includes("logement") || l.includes("hébergement"),
     field: "housing_status",
-  },
-  {
-    match: (l) => l.includes("sport"),
-    field: "sport_frequency",
   },
   {
     match: (l) => l.includes("secteur") && l.includes("activ"),
@@ -121,9 +161,15 @@ function parseBoolean(value: string): boolean | null {
 
 function parseGender(value: string): string | null {
   const lower = value.toLowerCase().trim();
-  if (lower === "homme" || lower === "masculin" || lower === "male" || lower === "m") return "male";
-  if (lower === "femme" || lower === "féminin" || lower === "female" || lower === "f") return "female";
+  if (lower.includes("homme") || lower === "masculin" || lower === "male" || lower === "m") return "male";
+  if (lower.includes("femme") || lower === "féminin" || lower === "female" || lower === "f") return "female";
   return "other";
+}
+
+function parseAge(value: string): number | null {
+  const num = parseInt(value.replace(/\D/g, ""), 10);
+  if (num && num >= 18 && num <= 120) return num;
+  return null;
 }
 
 function parseAlcohol(value: string): string | null {
@@ -142,21 +188,42 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { formSubmissionId, userId } = (await req.json()) as {
-      formSubmissionId: string;
+    const { formSubmissionId: rawFormSubId, userId, email, dryRun } = (await req.json()) as {
+      formSubmissionId?: string;
       userId?: string;
+      email?: string;
+      dryRun?: boolean;
     };
-
-    if (!formSubmissionId) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing formSubmissionId" }),
-        { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } },
-      );
-    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Resolve formSubmissionId: either passed directly or looked up via email
+    let formSubmissionId = rawFormSubId;
+
+    if (!formSubmissionId && email) {
+      const { data: invitation } = await supabase
+        .from("invitations")
+        .select("form_submission_id")
+        .eq("email", email.toLowerCase())
+        .eq("status", "accepted")
+        .not("form_submission_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (invitation?.form_submission_id) {
+        formSubmissionId = invitation.form_submission_id;
+      }
+    }
+
+    if (!formSubmissionId) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "No form submission found. Provide formSubmissionId or a valid email." }),
+        { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } },
+      );
+    }
 
     // 1. Get question map
     const { data: questionMap } = await supabase
@@ -203,6 +270,8 @@ Deno.serve(async (req: Request) => {
       // Type conversions to match DB schema
       if (field === "height_cm") {
         value = parseHeightCm(answer.value_text);
+      } else if (field === "age_years") {
+        value = parseAge(answer.value_text);
       } else if (field === "children_has" || field === "smoker" || field === "has_vehicle") {
         value = parseBoolean(answer.value_text);
       } else if (field === "gender") {
@@ -211,14 +280,60 @@ Deno.serve(async (req: Request) => {
         value = parseAlcohol(answer.value_text);
       }
 
+      // Skip fields that don't exist in the profiles table
+      if (field === "financial_note" || field === "wants_children_text") {
+        unmappedQuestions.push(`${label} (→ ${field}, no column)`);
+        continue;
+      }
+
       if (value !== null && value !== undefined) {
         profileData[field] = value;
         mappedFields.push(field);
       }
     }
 
-    // 4. Find user: look in public.users (not auth.users) via invitation email
+    // 4. dryRun mode: return mapped data without saving
+    if (dryRun) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          dryRun: true,
+          mappedFields,
+          unmappedQuestions,
+          profileData,
+        }),
+        { headers: { ...corsHeaders, "content-type": "application/json" } },
+      );
+    }
+
+    // 5. Find user: ensure public.users record exists
     let targetUserId = userId;
+
+    // If userId provided, ensure public.users record exists (FK constraint)
+    if (targetUserId) {
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", targetUserId)
+        .single();
+
+      if (!existingUser) {
+        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(targetUserId);
+        if (authUser?.email) {
+          const { error: createError } = await supabase
+            .from("users")
+            .insert({
+              id: targetUserId,
+              email: authUser.email,
+              role: "member",
+              status: "pending_new",
+            });
+          if (createError && createError.code !== "23505") {
+            console.error("Failed to create public.users record:", createError.message);
+          }
+        }
+      }
+    }
 
     if (!targetUserId) {
       const { data: invitation } = await supabase
@@ -230,7 +345,6 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (invitation?.email) {
-        // First try public.users
         const { data: publicUser } = await supabase
           .from("users")
           .select("id")
@@ -240,7 +354,6 @@ Deno.serve(async (req: Request) => {
         if (publicUser) {
           targetUserId = publicUser.id;
         } else {
-          // Fallback: check auth.users and create public.users record
           const { data: { users } } = await supabase.auth.admin.listUsers();
           const authUser = users?.find(
             (u: { email?: string }) =>
@@ -248,14 +361,13 @@ Deno.serve(async (req: Request) => {
           );
 
           if (authUser) {
-            // Create public.users record from auth user
             const { data: newUser, error: createError } = await supabase
               .from("users")
               .insert({
                 id: authUser.id,
                 email: authUser.email!,
                 role: "member",
-                status: "pending_review",
+                status: "pending_new",
               })
               .select("id")
               .single();
@@ -263,7 +375,6 @@ Deno.serve(async (req: Request) => {
             if (!createError && newUser) {
               targetUserId = newUser.id;
             } else if (createError?.code === "23505") {
-              // Already exists (race condition), fetch it
               const { data: existing } = await supabase
                 .from("users")
                 .select("id")
@@ -286,7 +397,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 5. Upsert profile
+    // 6. Upsert profile
     const { error: upsertError } = await supabase
       .from("profiles")
       .upsert(
