@@ -1,37 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
+  type ColumnDef,
+  type FilterFn,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   useReactTable,
-  type ColumnDef,
-  type FilterFn,
 } from '@tanstack/react-table'
-import type { GenerateInvitationResult, UserSession } from '../../../shared/types'
 import { generateInvitation } from '../../../services/supabase/invitations'
-import { Button } from '../../../shared/components/ui/button'
-import { Badge } from '../../../shared/components/ui/badge'
-import { Toast } from '../../../shared/components/ui/toast'
-import { Logo } from '../../../shared/components/Logo'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '../../../shared/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../../shared/components/ui/table'
-import { ScrollArea } from '../../../shared/components/ui/scroll-area'
-import { DataTableToolbar } from '../../../shared/components/data-table/data-table-toolbar'
 import {
   fetchSubmissionAnswers,
   type FormSubmissionAnswer,
@@ -46,17 +24,32 @@ import {
   searchSubmissions,
   type SearchSubmission,
 } from '../../../services/supabase/searchSubmissions'
+import { getSession } from '../../../shared/auth/sessionManager'
+import { DataTableToolbar } from '../../../shared/components/data-table/data-table-toolbar'
+import { Button } from '../../../shared/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../../shared/components/ui/card'
+import { ScrollArea } from '../../../shared/components/ui/scroll-area'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../shared/components/ui/table'
+import { Toast } from '../../../shared/components/ui/toast'
+import type { GenerateInvitationResult } from '../../../shared/types'
 
 type ToastMessage = {
   title: string
   description?: string
   variant?: 'info' | 'success' | 'error'
-}
-
-interface DashboardProps {
-  accessToken: string
-  userSession: UserSession | null
-  onLogout: () => void
 }
 
 type SubmissionRow = SearchSubmission & {
@@ -72,15 +65,6 @@ type SelectedSubmission = {
   answers: FormSubmissionAnswer[]
 }
 
-const NAV_ITEMS = [
-  { label: 'Apercu', active: false, route: null },
-  { label: 'Import', active: false, route: '/dashboard' },
-  { label: 'Historique', active: false, route: null },
-  { label: 'Recherche', active: true, route: '/recherche' },
-  { label: 'Clients', active: false, route: null },
-  { label: 'Parametres', active: false, route: null },
-]
-
 function formatDate(value?: string | null) {
   if (!value) return '--'
   const date = new Date(value)
@@ -93,22 +77,42 @@ function formatDate(value?: string | null) {
   })
 }
 
-function getAnswerValue(answers: FormSubmissionAnswer[], questionId: string): string {
+function getAnswerValue(
+  answers: FormSubmissionAnswer[],
+  questionId: string,
+): string {
   if (!questionId) return ''
   return answers
-    .filter((a) => a.question_id === questionId)
-    .sort((a, b) => a.answer_index - b.answer_index)
-    .map((a) => a.value_text ?? '')
+    .filter((answer) => answer.question_id === questionId)
+    .sort((left, right) => left.answer_index - right.answer_index)
+    .map((answer) => answer.value_text ?? '')
     .filter(Boolean)
     .join(', ')
 }
 
-function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardProps) {
+const REQUIRED_ENV = {
+  VITE_SEARCH_SUBMISSIONS_ENDPOINT: import.meta.env
+    .VITE_SEARCH_SUBMISSIONS_ENDPOINT as string | undefined,
+  VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as
+    | string
+    | undefined,
+  VITE_GOOGLE_FORM_ID: import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined,
+}
+
+const missingEnvVars = Object.entries(REQUIRED_ENV)
+  .filter(([, value]) => !value)
+  .map(([key]) => key)
+
+function RechercheDashboard() {
+  const session = getSession()
+  const accessToken = session?.accessToken
   const [questionMap, setQuestionMap] = useState<FormQuestionMap[]>([])
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [selectedSubmission, setSelectedSubmission] =
     useState<SelectedSubmission | null>(null)
-  const [loadingSubmissionId, setLoadingSubmissionId] = useState<string | null>(null)
+  const [loadingSubmissionId, setLoadingSubmissionId] = useState<string | null>(
+    null,
+  )
   const [generatedDeepLink, setGeneratedDeepLink] = useState<string | null>(null)
   const answersCacheRef = useRef<Record<string, FormSubmissionAnswer[]>>({})
   const nameInputRef = useRef<HTMLInputElement | null>(null)
@@ -158,6 +162,10 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
       if (!formId) {
         throw new Error('Missing VITE_GOOGLE_FORM_ID.')
       }
+      if (!accessToken) {
+        throw new Error('Session expiree. Reconnectez-vous.')
+      }
+
       const googleItems = await fetchGoogleFormQuestionMap(formId, accessToken)
       return upsertFormQuestionMap(googleItems)
     },
@@ -180,7 +188,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
 
   const inviteMutation = useMutation({
     mutationFn: async (submissionId: string) => {
-      return generateInvitation(submissionId, userSession?.sessionId)
+      return generateInvitation(submissionId, session?.sessionId)
     },
     onSuccess: (data: GenerateInvitationResult) => {
       if (data.invitation) {
@@ -348,7 +356,6 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
     },
   })
 
-  const sessionExpiry = userSession ? formatDate(userSession.expiresAt) : null
   const filteredCount = table.getFilteredRowModel().rows.length
   const pageCount = table.getPageCount()
   const pagination = table.getState().pagination
@@ -360,260 +367,188 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
   )
 
   return (
-    <div className="min-h-full overflow-x-hidden overflow-y-visible lg:h-full lg:overflow-hidden">
-      <div className="mx-auto flex min-h-full min-w-0 w-full max-w-7xl gap-4 px-4 py-4 lg:h-full">
-        <aside className="hidden h-full w-72 flex-col lg:flex">
-          <div className="flex h-full flex-col gap-4 rounded-3xl border border-border/70 bg-card/80 p-4 shadow-sm">
-            <div className="space-y-3">
-              <Logo subtitle="Back office" />
-              <p className="text-sm text-muted-foreground">
-                Recherche rapide dans les reponses normalisees.
-              </p>
-            </div>
+    <>
+      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4">
+        <header className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
+            Rubrique recherche
+          </p>
+          <h1 className="font-display text-2xl font-semibold md:text-3xl">
+            Recherche de clients
+          </h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Recherchez par nom, email ou telephone puis ouvrez la fiche client.
+          </p>
+        </header>
 
-            <nav className="space-y-2">
-              {NAV_ITEMS.map((item) => (
-                <a
-                  key={item.label}
-                  href={item.route || undefined}
-                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                    item.active
-                      ? 'border-primary/40 bg-primary/10 text-foreground'
-                      : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-muted/40'
-                  }`}
-                >
-                  <span>{item.label}</span>
-                  {item.active ? (
-                    <span className="text-xs uppercase tracking-[0.3em] text-primary">
-                      actif
-                    </span>
-                  ) : null}
-                </a>
-              ))}
-            </nav>
-
-            <div className="mt-auto space-y-3 rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                Support
-              </p>
-              <p className="text-muted-foreground">Besoin d'aide ?</p>
-              <Button variant="secondary" size="sm" className="w-full">
-                Contacter l'equipe
-              </Button>
-            </div>
-          </div>
-        </aside>
-
-        <main className="flex min-h-full min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-visible lg:h-full lg:overflow-hidden">
-          <header className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="mb-2 lg:hidden">
-                <Logo subtitle="Back office" />
+        <Card className="shrink-0 min-w-0 border-border/60 bg-card/80">
+          <CardHeader>
+            <CardTitle>Filtres de recherche</CardTitle>
+            <CardDescription>
+              Recherchez par nom, email ou telephone. Laissez vide pour tout afficher.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="min-w-0">
+                <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                  Nom / Prenom
+                </label>
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                  placeholder="ex: Dupont"
+                />
               </div>
-              <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-                Rubrique Recherche
-              </p>
-              <h1 className="font-display text-2xl font-semibold md:text-3xl">
-                Recherche de clients
-              </h1>
-              <p className="max-w-2xl text-sm text-muted-foreground">
-                Recherchez par nom, email ou telephone puis ouvrez la fiche client.
-              </p>
+              <div className="min-w-0">
+                <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                  Email
+                </label>
+                <input
+                  ref={emailInputRef}
+                  type="email"
+                  className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                  placeholder="ex: jane@email.com"
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                  Telephone
+                </label>
+                <input
+                  ref={phoneInputRef}
+                  type="tel"
+                  className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                  placeholder="ex: 06 12 34 56 78"
+                />
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge variant="outline">
-                Session {userSession?.sessionId.slice(0, 8) ?? '--'}
-              </Badge>
-              {sessionExpiry ? (
-                <Badge variant="warning">Expire {sessionExpiry}</Badge>
-              ) : null}
-              <Button variant="outline" size="sm" onClick={onLogout}>
-                Se deconnecter
-              </Button>
-            </div>
-          </header>
 
-          <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-2 lg:hidden">
-            {NAV_ITEMS.filter((item) => item.route).map((item) => (
-              <a
-                key={item.label}
-                href={item.route || undefined}
-                className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] ${
-                  item.active
-                    ? 'border-primary/50 bg-primary/10 text-foreground'
-                    : 'border-border/60 text-muted-foreground'
-                }`}
+            {missingEnvVars.length > 0 ? (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                Variables d environnement manquantes: {missingEnvVars.join(', ')}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                onClick={handleSearchClick}
+                disabled={searchMutation.isPending || missingEnvVars.length > 0}
               >
-                {item.label}
-              </a>
-            ))}
-          </div>
+                {searchMutation.isPending ? 'Recherche...' : 'Rechercher'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending || missingEnvVars.length > 0}
+              >
+                {syncMutation.isPending
+                  ? 'Mise a jour...'
+                  : 'Mettre a jour les libelles'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card className="shrink-0 min-w-0 border-border/60 bg-card/80">
-            <CardHeader>
-              <CardTitle>Filtres de recherche</CardTitle>
-              <CardDescription>
-                Recherchez par nom, email ou telephone. Laissez vide pour tout afficher.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="min-w-0">
-                  <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                    Nom / Prenom
-                  </label>
-                  <input
-                    ref={nameInputRef}
-                    type="text"
-                    className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
-                    placeholder="ex: Dupont"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                    Email
-                  </label>
-                  <input
-                    ref={emailInputRef}
-                    type="email"
-                    className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
-                    placeholder="ex: jane@email.com"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                    Telephone
-                  </label>
-                  <input
-                    ref={phoneInputRef}
-                    type="tel"
-                    className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
-                    placeholder="ex: 06 12 34 56 78"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  onClick={handleSearchClick}
-                  disabled={searchMutation.isPending}
-                >
-                  {searchMutation.isPending ? 'Recherche...' : 'Rechercher'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => syncMutation.mutate()}
-                  disabled={syncMutation.isPending}
-                >
-                  {syncMutation.isPending
-                    ? 'Mise a jour...'
-                    : 'Mettre a jour les libelles'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="flex min-h-0 min-w-0 flex-1 flex-col border-border/60 bg-card/80">
-            <CardHeader>
-              <CardTitle>
-                Resultats {filteredCount} / {submissions.length}
-              </CardTitle>
-              <CardDescription>
-                Cliquez sur "Voir tout" pour charger les reponses completes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
-              <DataTableToolbar
-                table={table}
-                globalPlaceholder="Filtrer les resultats..."
-                showViewOptions={false}
-              />
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      {table.getHeaderGroups().map((headerGroup) => (
-                        <TableRow key={headerGroup.id}>
-                          {headerGroup.headers.map((header) => (
-                            <TableHead key={header.id}>
-                              {header.isPlaceholder
-                                ? null
-                                : flexRender(
-                                    header.column.columnDef.header,
-                                    header.getContext(),
-                                  )}
-                            </TableHead>
+        <Card className="flex min-h-0 min-w-0 flex-1 flex-col border-border/60 bg-card/80">
+          <CardHeader>
+            <CardTitle>
+              Resultats {filteredCount} / {submissions.length}
+            </CardTitle>
+            <CardDescription>
+              Cliquez sur "Voir tout" pour charger les reponses completes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+            <DataTableToolbar
+              table={table}
+              globalPlaceholder="Filtrer les resultats..."
+              showViewOptions={false}
+            />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <TableRow key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <TableHead key={header.id}>
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableHeader>
+                  <TableBody>
+                    {tableData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          {searchMutation.isPending
+                            ? 'Recherche en cours...'
+                            : 'Aucun resultat. Cliquez sur "Rechercher" pour commencer.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : table.getRowModel().rows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          Aucun resultat pour ce filtre.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      table.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id} className="py-2.5">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
                           ))}
                         </TableRow>
-                      ))}
-                    </TableHeader>
-                    <TableBody>
-                      {tableData.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
-                            {searchMutation.isPending
-                              ? 'Recherche en cours...'
-                              : 'Aucun resultat. Cliquez sur "Rechercher" pour commencer.'}
-                          </TableCell>
-                        </TableRow>
-                      ) : table.getRowModel().rows.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
-                            Aucun resultat pour ce filtre.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        table.getRowModel().rows.map((row) => (
-                          <TableRow key={row.id}>
-                            {row.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id} className="py-2.5">
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3 text-sm">
+                <div className="text-muted-foreground">
+                  {filteredCount === 0 ? '0 resultat' : `${pageStart}-${pageEnd} sur ${filteredCount}`}
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3 text-sm">
-                  <div className="text-muted-foreground">
-                    {filteredCount === 0
-                      ? '0 resultat'
-                      : `${pageStart}-${pageEnd} sur ${filteredCount}`}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => table.previousPage()}
-                      disabled={!table.getCanPreviousPage()}
-                    >
-                      Precedent
-                    </Button>
-                    <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Page {pageCount === 0 ? 0 : pagination.pageIndex + 1} / {pageCount}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => table.nextPage()}
-                      disabled={!table.getCanNextPage()}
-                    >
-                      Suivant
-                    </Button>
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                  >
+                    Precedent
+                  </Button>
+                  <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Page {pageCount === 0 ? 0 : pagination.pageIndex + 1} / {pageCount}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                  >
+                    Suivant
+                  </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </main>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {toast ? (
-        <div className="fixed right-6 top-6 z-50 flex w-full max-w-sm flex-col gap-3">
+        <div className="fixed right-6 top-16 z-50 flex w-full max-w-sm flex-col gap-3">
           <Toast
             title={toast.title}
             description={toast.description}
@@ -668,8 +603,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                       </p>
                       <p className="font-medium">
                         {formatDate(
-                          selectedSubmission.submitted_at ??
-                            selectedSubmission.created_at,
+                          selectedSubmission.submitted_at ?? selectedSubmission.created_at,
                         )}
                       </p>
                     </div>
@@ -691,7 +625,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
                 {generatedDeepLink ? (
                   <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
                     <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
-                      Lien d'invitation (deep link)
+                      Lien d invitation (deep link)
                     </p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 rounded-lg bg-background px-3 py-2 text-sm font-mono break-all">
@@ -742,7 +676,7 @@ function RechercheDashboard({ accessToken, userSession, onLogout }: DashboardPro
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   )
 }
 

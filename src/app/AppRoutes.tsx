@@ -1,56 +1,10 @@
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import AuthPage from '../features/auth/pages/AuthPage'
-import  ImportDashboard  from '../features/import/pages/ImportDashboard'
+import ImportDashboard from '../features/import/pages/ImportDashboard'
 import RechercheDashboard from '../features/recherche/pages/rechercheDashboard'
-import { clearSession, getSession } from '../shared/auth/sessionManager'
-import type { UserSession } from '../shared/types'
 import AuthLayout from './layouts/AuthLayout'
 import BackOfficeLayout from './layouts/BackOfficeLayout'
 import RequireAuth from './guards/RequireAuth'
-
-function ImportDashboardRoute() {
-  const navigate = useNavigate()
-  const session = getSession() as UserSession | null
-
-  if (!session || !session.accessToken) {
-    return null
-  }
-
-  const handleLogout = () => {
-    clearSession()
-    navigate('/')
-  }
-
-  return (
-    <ImportDashboard
-      accessToken={session.accessToken}
-      userSession={session}
-      onLogout={handleLogout}
-    />
-  )
-}
-
-function RechercheDashboardRoute() {
-  const navigate = useNavigate()
-  const session = getSession() as UserSession | null
-
-  if (!session || !session.accessToken) {
-    return null
-  }
-
-  const handleLogout = () => {
-    clearSession()
-    navigate('/')
-  }
-
-  return (
-    <RechercheDashboard
-      accessToken={session.accessToken}
-      userSession={session}
-      onLogout={handleLogout}
-    />
-  )
-}
 
 export default function AppRoutes() {
   return (
@@ -69,7 +23,7 @@ export default function AppRoutes() {
           element={
             <RequireAuth>
               <BackOfficeLayout>
-                <ImportDashboardRoute />
+                <ImportDashboard />
               </BackOfficeLayout>
             </RequireAuth>
           }
@@ -79,7 +33,7 @@ export default function AppRoutes() {
           element={
             <RequireAuth>
               <BackOfficeLayout>
-                <RechercheDashboardRoute />
+                <RechercheDashboard />
               </BackOfficeLayout>
             </RequireAuth>
           }
