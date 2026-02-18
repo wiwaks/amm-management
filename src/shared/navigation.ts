@@ -1,6 +1,7 @@
 import {
   Upload,
   Search,
+  Shield,
   LayoutDashboard,
   History,
   Users,
@@ -21,6 +22,7 @@ export const NAV_MAIN: NavItem[] = [
   { label: 'Import', icon: Upload, route: '/dashboard' },
   { label: 'Historique', icon: History, route: null, disabled: true },
   { label: 'Recherche', icon: Search, route: '/recherche' },
+  { label: 'Modération', icon: Shield, route: '/moderation' },
   { label: 'Clients', icon: Users, route: null, disabled: true },
 ]
 
