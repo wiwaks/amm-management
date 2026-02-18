@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation } from '@tanstack/react-query'
 import {
@@ -6,6 +6,7 @@ import {
   fetchProfileDetail,
   approveProfile,
   rejectProfile,
+  computeCompletion,
   type PendingProfile,
   type ProfileDetail,
   type UserPhoto,
@@ -149,6 +150,12 @@ function ModerationDashboard() {
     if (showRejectInput) rejectInputRef.current?.focus()
   }, [showRejectInput])
 
+  // Compute completion score dynamically from profile + fun facts
+  const completion = useMemo(() => {
+    if (!selectedProfile) return { pct: 0, missing: [] as string[] }
+    return computeCompletion(selectedProfile.profile, selectedProfile.funFacts)
+  }, [selectedProfile])
+
   return (
     <>
       <div className="flex h-full flex-col gap-6 p-6">
@@ -274,7 +281,7 @@ function ModerationDashboard() {
                     <p className="text-sm text-muted-foreground">
                       {selectedProfile.profile.city ?? '--'} &middot;{' '}
                       {selectedProfile.profile.gender ?? '--'} &middot; Score{' '}
-                      {selectedProfile.profile.completion_score ?? 0}%
+                      {completion.pct}%
                     </p>
                   </div>
                   <Button
@@ -473,14 +480,14 @@ function ModerationDashboard() {
                     )}
 
                     {/* Missing fields */}
-                    {selectedProfile.profile.completion_missing_fields && selectedProfile.profile.completion_missing_fields.length > 0 && (
+                    {completion.missing.length > 0 && (
                       <div>
                         <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                          Champs manquants
+                          Champs manquants ({completion.missing.length})
                         </h3>
-                        <div className="flex flex-wrap gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-                          <AlertTriangle className="mr-1 h-4 w-4 text-amber-500" />
-                          {selectedProfile.profile.completion_missing_fields.map((field) => (
+                        <div className="flex flex-wrap items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                          {completion.missing.map((field) => (
                             <Badge key={field} variant="outline" className="border-amber-500/40 text-xs text-amber-600">
                               {field}
                             </Badge>

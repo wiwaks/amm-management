@@ -1,4 +1,4 @@
-import { supabase } from './client'
+import { supabaseAdmin } from './client'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const BUCKET = 'photos'
@@ -102,10 +102,54 @@ function getPublicUrl(storagePath: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${storagePath}`
 }
 
+/** Profile fields that count towards completion (excludes system fields). */
+const PROFILE_SCORED_KEYS: (keyof ProfileDetail)[] = [
+  'first_name', 'last_name', 'birthdate', 'gender',
+  'city', 'zone', 'profession', 'sector',
+  'relationship_status', 'housing_status',
+  'children_has', 'zodiac_sign', 'religion',
+  'has_vehicle', 'smoker', 'alcohol', 'sport_frequency',
+  'height_cm', 'skin_tone', 'hair_length', 'hair_texture', 'hair_style',
+  'clothing_size', 'fashion_style',
+  'bio_short', 'bio_long',
+  'lover_cv_short', 'lover_cv_long',
+]
+
+const FUN_FACTS_KEYS: (keyof FunFacts)[] = [
+  'fav_dish', 'sweet_pleasure', 'dislikes_food', 'allergies', 'team_environment',
+  'last_book_or_alt', 'movie_or_series_like_me', 'music_of_the_moment', 'ideal_weekend_activity',
+  'best_recognized_quality', 'small_flaw', 'i_appreciate_in_someone', 'dealbreaker_text',
+  'bravest_thing_done', 'surprising_fact', 'happiest_when',
+  'i_am_looking_for', 'in_2_5_years_i_want', 'love_language',
+]
+
+export function computeCompletion(
+  profile: ProfileDetail,
+  funFacts: FunFacts | null,
+): { pct: number; missing: string[] } {
+  const missing: string[] = []
+  const total = PROFILE_SCORED_KEYS.length + FUN_FACTS_KEYS.length
+
+  for (const key of PROFILE_SCORED_KEYS) {
+    const v = profile[key]
+    if (v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) {
+      missing.push(key)
+    }
+  }
+
+  for (const key of FUN_FACTS_KEYS) {
+    const v = funFacts?.[key]
+    if (!v) missing.push(key)
+  }
+
+  const filled = total - missing.length
+  return { pct: total > 0 ? Math.round((filled / total) * 100) : 0, missing }
+}
+
 // ── Queries ──
 
 export async function fetchPendingProfiles(): Promise<PendingProfile[]> {
-  const { data: profiles, error } = await supabase
+  const { data: profiles, error } = await supabaseAdmin
     .from('profiles')
     .select(
       'user_id, first_name, last_name, age_years, gender, city, zone, profession, bio_short, completion_score, verification_status, created_at',
@@ -118,7 +162,7 @@ export async function fetchPendingProfiles(): Promise<PendingProfile[]> {
 
   // Fetch main photos for all pending profiles
   const userIds = profiles.map((p) => p.user_id)
-  const { data: photos } = await supabase
+  const { data: photos } = await supabaseAdmin
     .from('user_photos')
     .select('user_id, storage_path')
     .in('user_id', userIds)
@@ -138,7 +182,7 @@ export async function fetchPendingProfiles(): Promise<PendingProfile[]> {
 export async function fetchProfileDetail(
   userId: string,
 ): Promise<{ profile: ProfileDetail; photos: UserPhoto[]; funFacts: FunFacts | null } | null> {
-  const { data: profile, error } = await supabase
+  const { data: profile, error } = await supabaseAdmin
     .from('profiles')
     .select('*')
     .eq('user_id', userId)
@@ -147,17 +191,17 @@ export async function fetchProfileDetail(
   if (error || !profile) return null
 
   const [photosResult, funFactsResult] = await Promise.all([
-    supabase
+    supabaseAdmin
       .from('user_photos')
       .select('id, user_id, album, position, storage_path')
       .eq('user_id', userId)
       .order('album')
       .order('position'),
-    supabase
+    supabaseAdmin
       .from('fun_facts')
       .select('*')
       .eq('user_id', userId)
-      .single(),
+      .maybeSingle(),
   ])
 
   return {
@@ -172,7 +216,7 @@ export async function fetchProfileDetail(
 export async function approveProfile(userId: string): Promise<void> {
   const now = new Date().toISOString()
 
-  const { error: profileError } = await supabase
+  const { error: profileError } = await supabaseAdmin
     .from('profiles')
     .update({
       verification_status: 'approved',
@@ -183,7 +227,7 @@ export async function approveProfile(userId: string): Promise<void> {
 
   if (profileError) throw profileError
 
-  const { error: userError } = await supabase
+  const { error: userError } = await supabaseAdmin
     .from('users')
     .update({ status: 'active' })
     .eq('id', userId)
@@ -195,7 +239,7 @@ export async function rejectProfile(
   userId: string,
   reason: string,
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('profiles')
     .update({
       verification_status: 'rejected',
