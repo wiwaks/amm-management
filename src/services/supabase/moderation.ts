@@ -249,3 +249,29 @@ export async function rejectProfile(
 
   if (error) throw error
 }
+
+export async function updateProfileFields(
+  userId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update(fields)
+    .eq('user_id', userId)
+
+  if (error) throw error
+}
+
+export async function updateFunFacts(
+  userId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('fun_facts')
+    .upsert(
+      { user_id: userId, ...fields },
+      { onConflict: 'user_id' },
+    )
+
+  if (error) throw error
+}

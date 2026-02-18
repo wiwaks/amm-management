@@ -6,6 +6,8 @@ import {
   fetchProfileDetail,
   approveProfile,
   rejectProfile,
+  updateProfileFields,
+  updateFunFacts,
   computeCompletion,
   type PendingProfile,
   type ProfileDetail,
@@ -16,13 +18,26 @@ import { Button } from '../../../shared/components/ui/button'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '../../../shared/components/ui/card'
 import { Badge } from '../../../shared/components/ui/badge'
 import { Toast } from '../../../shared/components/ui/toast'
-import { Shield, CheckCircle2, XCircle, User, MapPin, Briefcase, Eye, AlertTriangle } from 'lucide-react'
+import {
+  Shield,
+  CheckCircle2,
+  XCircle,
+  User,
+  MapPin,
+  Briefcase,
+  AlertTriangle,
+  Pencil,
+} from 'lucide-react'
+import {
+  PROFILE_FIELD_SECTIONS,
+  FUN_FACTS_SECTIONS,
+  type FieldConfig,
+  type FieldSection,
+} from '../constants/fieldConfig'
+import { cn } from '../../../shared/utils/cn'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const BUCKET = 'photos'
@@ -56,7 +71,7 @@ type SelectedProfile = {
   funFacts: FunFacts | null
 }
 
-// ── Profile info field helper ──
+// ── Read-only field display ──
 
 function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null
@@ -64,6 +79,255 @@ function InfoField({ label, value }: { label: string; value: string | null | und
     <div>
       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
       <p className="font-medium">{String(value)}</p>
+    </div>
+  )
+}
+
+// ── Format a raw value for display in view mode ──
+
+function formatFieldValue(
+  config: FieldConfig,
+  value: unknown,
+): string | null {
+  if (value === null || value === undefined) return null
+
+  if (config.type === 'boolean') {
+    if (value === true) return 'Oui'
+    if (value === false) return 'Non'
+    return null
+  }
+
+  if (config.type === 'select' && config.options) {
+    const opt = config.options.find((o) => o.value === value)
+    return opt?.label ?? String(value)
+  }
+
+  if (config.type === 'multiselect' && Array.isArray(value)) {
+    if (value.length === 0) return null
+    return value
+      .map((v) => config.options?.find((o) => o.value === v)?.label ?? v)
+      .join(', ')
+  }
+
+  if (config.type === 'number' && config.key === 'height_cm') {
+    return `${value} cm`
+  }
+
+  const str = String(value)
+  return str || null
+}
+
+// ── Editable field control ──
+
+function EditableField({
+  config,
+  value,
+  onChange,
+}: {
+  config: FieldConfig
+  value: unknown
+  onChange: (val: unknown) => void
+}) {
+  const inputCls =
+    'w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+
+  switch (config.type) {
+    case 'text':
+      return (
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            {config.label}
+          </label>
+          <input
+            type="text"
+            value={(value as string) ?? ''}
+            onChange={(e) => onChange(e.target.value || null)}
+            className={inputCls}
+          />
+        </div>
+      )
+
+    case 'textarea':
+      return (
+        <div className="sm:col-span-2 lg:col-span-3">
+          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            {config.label}
+          </label>
+          <textarea
+            value={(value as string) ?? ''}
+            onChange={(e) => onChange(e.target.value || null)}
+            rows={3}
+            className={inputCls}
+          />
+        </div>
+      )
+
+    case 'number':
+      return (
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            {config.label}
+          </label>
+          <input
+            type="number"
+            value={value ?? ''}
+            onChange={(e) =>
+              onChange(e.target.value ? Number(e.target.value) : null)
+            }
+            className={inputCls}
+          />
+        </div>
+      )
+
+    case 'select':
+      return (
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            {config.label}
+          </label>
+          <select
+            value={(value as string) ?? ''}
+            onChange={(e) => onChange(e.target.value || null)}
+            className={inputCls}
+          >
+            <option value="">--</option>
+            {config.options?.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )
+
+    case 'boolean':
+      return (
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            {config.label}
+          </label>
+          <div className="flex gap-4 pt-1">
+            {[
+              { val: true, label: 'Oui' },
+              { val: false, label: 'Non' },
+              { val: null, label: '--' },
+            ].map((opt) => (
+              <label
+                key={String(opt.val)}
+                className="flex cursor-pointer items-center gap-1.5 text-sm"
+              >
+                <input
+                  type="radio"
+                  name={config.key}
+                  checked={value === opt.val}
+                  onChange={() => onChange(opt.val)}
+                  className="accent-primary"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )
+
+    case 'multiselect':
+      return (
+        <div className="sm:col-span-2 lg:col-span-3">
+          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            {config.label}
+          </label>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {config.options?.map((opt) => {
+              const selected =
+                Array.isArray(value) && (value as string[]).includes(opt.value)
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    const arr = Array.isArray(value)
+                      ? [...(value as string[])]
+                      : []
+                    if (selected) {
+                      const next = arr.filter((v) => v !== opt.value)
+                      onChange(next.length > 0 ? next : null)
+                    } else {
+                      onChange([...arr, opt.value])
+                    }
+                  }}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-medium transition',
+                    selected
+                      ? 'border-primary bg-primary/15 text-primary'
+                      : 'border-border/60 bg-white/70 text-muted-foreground hover:border-primary/40',
+                  )}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )
+
+    default:
+      return null
+  }
+}
+
+// ── Section renderer ──
+
+function SectionBlock({
+  section,
+  data,
+  draft,
+  isEditing,
+  onFieldChange,
+}: {
+  section: FieldSection
+  data: Record<string, unknown>
+  draft: Record<string, unknown>
+  isEditing: boolean
+  onFieldChange: (key: string, value: unknown) => void
+}) {
+  const hasAnyValue = section.fields.some((f) => {
+    const v = data[f.key]
+    return v !== null && v !== undefined && v !== ''
+  })
+
+  // In view mode, hide section if completely empty
+  if (!isEditing && !hasAnyValue) return null
+
+  return (
+    <div>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        {section.title}
+      </h3>
+      <div
+        className={cn(
+          'grid gap-3 rounded-2xl border p-4 sm:grid-cols-2 lg:grid-cols-3',
+          isEditing
+            ? 'border-primary/40 bg-primary/5'
+            : 'border-border/60 bg-muted/30',
+        )}
+      >
+        {isEditing
+          ? section.fields.map((config) => (
+              <EditableField
+                key={config.key}
+                config={config}
+                value={config.key in draft ? draft[config.key] : data[config.key]}
+                onChange={(val) => onFieldChange(config.key, val)}
+              />
+            ))
+          : section.fields.map((config) => {
+              const val = data[config.key]
+              const display = formatFieldValue(config, val)
+              return (
+                <InfoField key={config.key} label={config.label} value={display} />
+              )
+            })}
+      </div>
     </div>
   )
 }
@@ -77,6 +341,19 @@ function ModerationDashboard() {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectInput, setShowRejectInput] = useState(false)
   const rejectInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false)
+  const [profileDraft, setProfileDraft] = useState<Record<string, unknown>>({})
+  const [funFactsDraft, setFunFactsDraft] = useState<Record<string, unknown>>({})
+  const [dirtyFields, setDirtyFields] = useState<Set<string>>(new Set())
+
+  const resetEditState = useCallback(() => {
+    setIsEditing(false)
+    setProfileDraft({})
+    setFunFactsDraft({})
+    setDirtyFields(new Set())
+  }, [])
 
   // ── Fetch pending profiles ──
   const loadMutation = useMutation({
@@ -94,6 +371,7 @@ function ModerationDashboard() {
         setSelectedProfile(data)
         setShowRejectInput(false)
         setRejectReason('')
+        resetEditState()
       }
     },
     onError: (err) =>
@@ -106,6 +384,7 @@ function ModerationDashboard() {
     onSuccess: () => {
       setToast({ title: 'Approuve', description: 'Le profil a ete valide.', variant: 'success' })
       setSelectedProfile(null)
+      resetEditState()
       loadMutation.mutate()
     },
     onError: (err) =>
@@ -119,7 +398,44 @@ function ModerationDashboard() {
     onSuccess: () => {
       setToast({ title: 'Rejete', description: 'Le profil a ete rejete.', variant: 'info' })
       setSelectedProfile(null)
+      resetEditState()
       loadMutation.mutate()
+    },
+    onError: (err) =>
+      setToast({ title: 'Erreur', description: String(err), variant: 'error' }),
+  })
+
+  // ── Save edits ──
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const userId = selectedProfile!.profile.user_id
+
+      const profileChanges: Record<string, unknown> = {}
+      const funFactsChanges: Record<string, unknown> = {}
+
+      for (const field of dirtyFields) {
+        if (field in profileDraft) profileChanges[field] = profileDraft[field]
+        if (field in funFactsDraft) funFactsChanges[field] = funFactsDraft[field]
+      }
+
+      const promises: Promise<void>[] = []
+      if (Object.keys(profileChanges).length > 0) {
+        promises.push(updateProfileFields(userId, profileChanges))
+      }
+      if (Object.keys(funFactsChanges).length > 0) {
+        promises.push(updateFunFacts(userId, funFactsChanges))
+      }
+
+      await Promise.all(promises)
+    },
+    onSuccess: () => {
+      setToast({
+        title: 'Sauvegarde',
+        description: `${dirtyFields.size} champ(s) mis a jour.`,
+        variant: 'success',
+      })
+      // Re-fetch fresh data
+      detailMutation.mutate(selectedProfile!.profile.user_id)
     },
     onError: (err) =>
       setToast({ title: 'Erreur', description: String(err), variant: 'error' }),
@@ -138,6 +454,42 @@ function ModerationDashboard() {
     })
   }, [selectedProfile, rejectReason])
 
+  const handleClose = useCallback(() => {
+    setSelectedProfile(null)
+    setShowRejectInput(false)
+    setRejectReason('')
+    resetEditState()
+  }, [resetEditState])
+
+  const handleToggleEdit = useCallback(() => {
+    if (isEditing && dirtyFields.size > 0) {
+      if (!window.confirm('Abandonner les modifications ?')) return
+    }
+    if (isEditing) {
+      resetEditState()
+    } else {
+      setIsEditing(true)
+    }
+  }, [isEditing, dirtyFields.size, resetEditState])
+
+  // Profile field change handler
+  const handleProfileFieldChange = useCallback((key: string, value: unknown) => {
+    setProfileDraft((prev) => ({ ...prev, [key]: value }))
+    setDirtyFields((prev) => new Set(prev).add(key))
+
+    // children_has = false → clear children_count
+    if (key === 'children_has' && value === false) {
+      setProfileDraft((prev) => ({ ...prev, children_has: false, children_count: null }))
+      setDirtyFields((prev) => new Set(prev).add('children_has').add('children_count'))
+    }
+  }, [])
+
+  // Fun facts field change handler
+  const handleFunFactsFieldChange = useCallback((key: string, value: unknown) => {
+    setFunFactsDraft((prev) => ({ ...prev, [key]: value }))
+    setDirtyFields((prev) => new Set(prev).add(key))
+  }, [])
+
   // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return
@@ -154,6 +506,17 @@ function ModerationDashboard() {
   const completion = useMemo(() => {
     if (!selectedProfile) return { pct: 0, missing: [] as string[] }
     return computeCompletion(selectedProfile.profile, selectedProfile.funFacts)
+  }, [selectedProfile])
+
+  // Build flat data objects for section rendering
+  const profileData = useMemo<Record<string, unknown>>(() => {
+    if (!selectedProfile) return {}
+    return selectedProfile.profile as unknown as Record<string, unknown>
+  }, [selectedProfile])
+
+  const funFactsData = useMemo<Record<string, unknown>>(() => {
+    if (!selectedProfile?.funFacts) return {}
+    return selectedProfile.funFacts as unknown as Record<string, unknown>
   }, [selectedProfile])
 
   return (
@@ -284,24 +647,37 @@ function ModerationDashboard() {
                       {completion.pct}%
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedProfile(null)
-                      setShowRejectInput(false)
-                      setRejectReason('')
-                    }}
-                  >
-                    Fermer
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {!showRejectInput && (
+                      <Button
+                        type="button"
+                        variant={isEditing ? 'outline' : 'secondary'}
+                        size="sm"
+                        onClick={handleToggleEdit}
+                      >
+                        {isEditing ? (
+                          <>
+                            <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                            Annuler
+                          </>
+                        ) : (
+                          <>
+                            <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                            Modifier
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button type="button" variant="ghost" size="sm" onClick={handleClose}>
+                      Fermer
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Scrollable content */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   <div className="space-y-6 p-4 sm:p-6">
-                    {/* Photos grid */}
+                    {/* Photos grid (always read-only) */}
                     <div>
                       <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                         Photos
@@ -336,148 +712,29 @@ function ModerationDashboard() {
                       )}
                     </div>
 
-                    {/* Profile info */}
-                    <div>
-                      <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Informations
-                      </h3>
-                      <div className="grid gap-3 rounded-2xl border border-border/60 bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                        <InfoField label="Prenom" value={selectedProfile.profile.first_name} />
-                        <InfoField label="Nom" value={selectedProfile.profile.last_name} />
-                        <InfoField label="Date de naissance" value={selectedProfile.profile.birthdate} />
-                        <InfoField label="Genre" value={selectedProfile.profile.gender} />
-                        <InfoField label="Ville" value={selectedProfile.profile.city} />
-                        <InfoField label="Zone" value={selectedProfile.profile.zone} />
-                        <InfoField label="Profession" value={selectedProfile.profile.profession} />
-                        <InfoField label="Secteur" value={selectedProfile.profile.sector} />
-                        <InfoField label="Logement" value={selectedProfile.profile.housing_status} />
-                        <InfoField label="Situation" value={selectedProfile.profile.relationship_status} />
-                        <InfoField label="Taille" value={selectedProfile.profile.height_cm ? `${selectedProfile.profile.height_cm} cm` : null} />
-                        <InfoField label="Teint" value={selectedProfile.profile.skin_tone} />
-                        <InfoField label="Cheveux" value={[selectedProfile.profile.hair_length, selectedProfile.profile.hair_texture, selectedProfile.profile.hair_style].filter(Boolean).join(', ') || null} />
-                        <InfoField label="Taille vetements" value={selectedProfile.profile.clothing_size} />
-                        <InfoField label="Style" value={selectedProfile.profile.fashion_style?.join(', ') ?? null} />
-                        <InfoField label="Enfants" value={selectedProfile.profile.children_has === true ? `Oui (${selectedProfile.profile.children_count ?? '?'})` : selectedProfile.profile.children_has === false ? 'Non' : null} />
-                        <InfoField label="Signe" value={selectedProfile.profile.zodiac_sign} />
-                        <InfoField label="Religion" value={selectedProfile.profile.religion} />
-                        <InfoField label="Fumeur" value={selectedProfile.profile.smoker === true ? 'Oui' : selectedProfile.profile.smoker === false ? 'Non' : null} />
-                        <InfoField label="Alcool" value={selectedProfile.profile.alcohol} />
-                        <InfoField label="Sport" value={selectedProfile.profile.sport_frequency} />
-                        <InfoField label="Vehicule" value={selectedProfile.profile.has_vehicle === true ? 'Oui' : selectedProfile.profile.has_vehicle === false ? 'Non' : null} />
-                      </div>
-                    </div>
+                    {/* Profile sections (data-driven) */}
+                    {PROFILE_FIELD_SECTIONS.map((section) => (
+                      <SectionBlock
+                        key={section.title}
+                        section={section}
+                        data={profileData}
+                        draft={profileDraft}
+                        isEditing={isEditing}
+                        onFieldChange={handleProfileFieldChange}
+                      />
+                    ))}
 
-                    {/* Bio */}
-                    {(selectedProfile.profile.bio_short || selectedProfile.profile.bio_long) && (
-                      <div>
-                        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                          Bio
-                        </h3>
-                        <div className="space-y-2 rounded-2xl border border-border/60 bg-card p-4">
-                          {selectedProfile.profile.bio_short && (
-                            <p className="text-sm">{selectedProfile.profile.bio_short}</p>
-                          )}
-                          {selectedProfile.profile.bio_long && (
-                            <p className="text-sm text-muted-foreground">
-                              {selectedProfile.profile.bio_long}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Lover CV */}
-                    {(selectedProfile.profile.lover_cv_short || selectedProfile.profile.lover_cv_long) && (
-                      <div>
-                        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                          Lover CV
-                        </h3>
-                        <div className="space-y-2 rounded-2xl border border-border/60 bg-card p-4">
-                          {selectedProfile.profile.lover_cv_short && (
-                            <p className="text-sm">{selectedProfile.profile.lover_cv_short}</p>
-                          )}
-                          {selectedProfile.profile.lover_cv_long && (
-                            <p className="text-sm text-muted-foreground">
-                              {selectedProfile.profile.lover_cv_long}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Fun Facts */}
-                    {selectedProfile.funFacts && (
-                      <div>
-                        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                          Fun Facts
-                        </h3>
-                        <div className="space-y-4">
-                          {/* Food */}
-                          {[selectedProfile.funFacts.fav_dish, selectedProfile.funFacts.sweet_pleasure, selectedProfile.funFacts.dislikes_food, selectedProfile.funFacts.allergies, selectedProfile.funFacts.team_environment].some(Boolean) && (
-                            <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary/70">Cuisine</p>
-                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                <InfoField label="Plat prefere" value={selectedProfile.funFacts.fav_dish} />
-                                <InfoField label="Plaisir sucre" value={selectedProfile.funFacts.sweet_pleasure} />
-                                <InfoField label="N'aime pas" value={selectedProfile.funFacts.dislikes_food} />
-                                <InfoField label="Allergies" value={selectedProfile.funFacts.allergies} />
-                                <InfoField label="Team" value={selectedProfile.funFacts.team_environment} />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Culture */}
-                          {[selectedProfile.funFacts.last_book_or_alt, selectedProfile.funFacts.movie_or_series_like_me, selectedProfile.funFacts.music_of_the_moment, selectedProfile.funFacts.ideal_weekend_activity].some(Boolean) && (
-                            <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary/70">Culture</p>
-                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                <InfoField label="Dernier livre / podcast" value={selectedProfile.funFacts.last_book_or_alt} />
-                                <InfoField label="Film / serie qui me ressemble" value={selectedProfile.funFacts.movie_or_series_like_me} />
-                                <InfoField label="Musique du moment" value={selectedProfile.funFacts.music_of_the_moment} />
-                                <InfoField label="Weekend ideal" value={selectedProfile.funFacts.ideal_weekend_activity} />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Emotion */}
-                          {[selectedProfile.funFacts.best_recognized_quality, selectedProfile.funFacts.small_flaw, selectedProfile.funFacts.i_appreciate_in_someone, selectedProfile.funFacts.dealbreaker_text].some(Boolean) && (
-                            <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary/70">Emotion</p>
-                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                <InfoField label="Qualite reconnue" value={selectedProfile.funFacts.best_recognized_quality} />
-                                <InfoField label="Petit defaut" value={selectedProfile.funFacts.small_flaw} />
-                                <InfoField label="J'apprecie chez quelqu'un" value={selectedProfile.funFacts.i_appreciate_in_someone} />
-                                <InfoField label="Dealbreaker" value={selectedProfile.funFacts.dealbreaker_text} />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Story */}
-                          {[selectedProfile.funFacts.bravest_thing_done, selectedProfile.funFacts.surprising_fact, selectedProfile.funFacts.happiest_when].some(Boolean) && (
-                            <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary/70">Histoire</p>
-                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                <InfoField label="Chose la plus courageuse" value={selectedProfile.funFacts.bravest_thing_done} />
-                                <InfoField label="Fait surprenant" value={selectedProfile.funFacts.surprising_fact} />
-                                <InfoField label="Le plus heureux quand" value={selectedProfile.funFacts.happiest_when} />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Projection */}
-                          {[selectedProfile.funFacts.i_am_looking_for, selectedProfile.funFacts.in_2_5_years_i_want, selectedProfile.funFacts.love_language].some(Boolean) && (
-                            <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary/70">Projection</p>
-                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                <InfoField label="Je recherche" value={selectedProfile.funFacts.i_am_looking_for} />
-                                <InfoField label="Dans 2-5 ans" value={selectedProfile.funFacts.in_2_5_years_i_want} />
-                                <InfoField label="Langage d'amour" value={selectedProfile.funFacts.love_language} />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    {/* Fun Facts sections (data-driven) */}
+                    {FUN_FACTS_SECTIONS.map((section) => (
+                      <SectionBlock
+                        key={section.title}
+                        section={section}
+                        data={funFactsData}
+                        draft={funFactsDraft}
+                        isEditing={isEditing}
+                        onFieldChange={handleFunFactsFieldChange}
+                      />
+                    ))}
 
                     {/* Missing fields */}
                     {completion.missing.length > 0 && (
@@ -488,7 +745,11 @@ function ModerationDashboard() {
                         <div className="flex flex-wrap items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
                           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                           {completion.missing.map((field) => (
-                            <Badge key={field} variant="outline" className="border-amber-500/40 text-xs text-amber-600">
+                            <Badge
+                              key={field}
+                              variant="outline"
+                              className="border-amber-500/40 text-xs text-amber-600"
+                            >
                               {field}
                             </Badge>
                           ))}
@@ -538,7 +799,22 @@ function ModerationDashboard() {
                 </div>
 
                 {/* Action bar */}
-                {!showRejectInput && (
+                {isEditing ? (
+                  <div className="flex items-center justify-between border-t border-border bg-background/95 p-4 backdrop-blur sm:p-6">
+                    <p className="text-xs text-muted-foreground">
+                      {dirtyFields.size} champ{dirtyFields.size !== 1 ? 's' : ''}{' '}
+                      modifie{dirtyFields.size !== 1 ? 's' : ''}
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => saveMutation.mutate()}
+                      disabled={dirtyFields.size === 0 || saveMutation.isPending}
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      {saveMutation.isPending ? 'Enregistrement...' : 'Sauvegarder'}
+                    </Button>
+                  </div>
+                ) : !showRejectInput ? (
                   <div className="flex items-center justify-end gap-3 border-t border-border bg-background/95 p-4 backdrop-blur sm:p-6">
                     <Button
                       type="button"
@@ -551,14 +827,16 @@ function ModerationDashboard() {
                     </Button>
                     <Button
                       type="button"
-                      onClick={() => approveMutation.mutate(selectedProfile.profile.user_id)}
+                      onClick={() =>
+                        approveMutation.mutate(selectedProfile.profile.user_id)
+                      }
                       disabled={approveMutation.isPending}
                     >
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       {approveMutation.isPending ? 'Validation...' : 'Approuver'}
                     </Button>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>,
             document.body,
