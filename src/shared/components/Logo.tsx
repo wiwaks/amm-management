@@ -7,14 +7,10 @@ type LogoProps = {
 
 function Logo({ className, subtitle }: LogoProps) {
   return (
-    <div className={cn('inline-flex flex-col gap-1', className)}>
-      <span className="font-display text-sm uppercase tracking-[0.45em] text-primary">
-        Martinique
-      </span>
+    <div className={cn('inline-flex flex-col gap-0.5', className)}>
+      <span className="text-sm font-semibold">Martinique</span>
       {subtitle ? (
-        <span className="text-[0.65rem] uppercase tracking-[0.4em] text-muted-foreground">
-          {subtitle}
-        </span>
+        <span className="text-xs text-muted-foreground">{subtitle}</span>
       ) : null}
     </div>
   )

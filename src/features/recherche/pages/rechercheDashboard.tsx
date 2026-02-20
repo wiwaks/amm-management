@@ -368,20 +368,9 @@ function RechercheDashboard() {
 
   return (
     <>
-      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4">
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-            Rubrique recherche
-          </p>
-          <h1 className="font-display text-2xl font-semibold md:text-3xl">
-            Recherche de clients
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Recherchez par nom, email ou telephone puis ouvrez la fiche client.
-          </p>
-        </header>
+      <div className="flex flex-1 flex-col gap-4 px-4 lg:px-6">
 
-        <Card className="shrink-0 min-w-0 border-border/60 bg-card/80">
+        <Card className="shrink-0 min-w-0 border">
           <CardHeader>
             <CardTitle>Filtres de recherche</CardTitle>
             <CardDescription>
@@ -391,42 +380,42 @@ function RechercheDashboard() {
           <CardContent className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="min-w-0">
-                <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                <label className="text-xs uppercase text-muted-foreground">
                   Nom / Prenom
                 </label>
                 <input
                   ref={nameInputRef}
                   type="text"
-                  className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="ex: Dupont"
                 />
               </div>
               <div className="min-w-0">
-                <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                <label className="text-xs uppercase text-muted-foreground">
                   Email
                 </label>
                 <input
                   ref={emailInputRef}
                   type="email"
-                  className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="ex: jane@email.com"
                 />
               </div>
               <div className="min-w-0">
-                <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                <label className="text-xs uppercase text-muted-foreground">
                   Telephone
                 </label>
                 <input
                   ref={phoneInputRef}
                   type="tel"
-                  className="mt-2 w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="ex: 06 12 34 56 78"
                 />
               </div>
             </div>
 
             {missingEnvVars.length > 0 ? (
-              <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                 Variables d environnement manquantes: {missingEnvVars.join(', ')}
               </div>
             ) : null}
@@ -453,7 +442,7 @@ function RechercheDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 min-w-0 flex-1 flex-col border-border/60 bg-card/80">
+        <Card className="flex min-h-0 min-w-0 flex-1 flex-col border">
           <CardHeader>
             <CardTitle>
               Resultats {filteredCount} / {submissions.length}
@@ -468,7 +457,7 @@ function RechercheDashboard() {
               globalPlaceholder="Filtrer les resultats..."
               showViewOptions={false}
             />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-muted/20">
               <div className="min-h-0 flex-1 overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -516,7 +505,7 @@ function RechercheDashboard() {
                   </TableBody>
                 </Table>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border px-4 py-3 text-sm">
                 <div className="text-muted-foreground">
                   {filteredCount === 0 ? '0 resultat' : `${pageStart}-${pageEnd} sur ${filteredCount}`}
                 </div>
@@ -529,7 +518,7 @@ function RechercheDashboard() {
                   >
                     Precedent
                   </Button>
-                  <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  <span className="text-xs uppercase text-muted-foreground">
                     Page {pageCount === 0 ? 0 : pagination.pageIndex + 1} / {pageCount}
                   </span>
                   <Button
@@ -564,10 +553,10 @@ function RechercheDashboard() {
       {selectedSubmission
         ? createPortal(
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-              <div className="relative flex h-[calc(100vh-2rem)] h-[calc(100dvh-2rem)] w-full max-w-none flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:h-[min(92vh,900px)] sm:h-[min(92dvh,900px)] sm:w-[min(94vw,1200px)] sm:rounded-3xl xl:w-[min(90vw,1320px)]">
+              <div className="relative flex h-[calc(100vh-2rem)] h-[calc(100dvh-2rem)] w-full max-w-none flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl sm:h-[min(92vh,900px)] sm:h-[min(92dvh,900px)] sm:w-[min(94vw,1200px)] sm:rounded-xl xl:w-[min(90vw,1320px)]">
                 <div className="z-10 flex items-center justify-between border-b border-border bg-background/95 p-4 backdrop-blur sm:p-6">
                   <div>
-                    <h2 className="font-display text-2xl font-semibold">
+                    <h2 className="text-2xl font-semibold">
                       Reponses completes
                     </h2>
                     <p className="text-sm text-muted-foreground">
@@ -599,10 +588,10 @@ function RechercheDashboard() {
 
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   <div className="space-y-4 p-4 sm:p-6">
-                    <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                    <div className="rounded-lg border bg-muted/30 p-4">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          <p className="text-xs uppercase text-muted-foreground">
                             Soumis le
                           </p>
                           <p className="font-medium">
@@ -613,7 +602,7 @@ function RechercheDashboard() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          <p className="text-xs uppercase text-muted-foreground">
                             Email
                           </p>
                           <p className="font-medium">
@@ -621,7 +610,7 @@ function RechercheDashboard() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          <p className="text-xs uppercase text-muted-foreground">
                             Telephone
                           </p>
                           <p className="font-medium">
@@ -632,7 +621,7 @@ function RechercheDashboard() {
                     </div>
 
                     {generatedDeepLink ? (
-                      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
                         <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
                           Lien d invitation (deep link)
                         </p>
@@ -671,7 +660,7 @@ function RechercheDashboard() {
                           return (
                             <div
                               key={question.question_id}
-                              className="rounded-2xl border border-border/60 bg-card p-4"
+                              className="rounded-lg border bg-card p-4"
                             >
                               <p className="mb-2 font-semibold text-foreground">
                                 {question.label}
@@ -686,7 +675,7 @@ function RechercheDashboard() {
 
                       if (answerCards.length === 0) {
                         return (
-                          <div className="rounded-2xl border border-border/60 bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                          <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
                             {questionMap.length === 0
                               ? 'Aucun libelle charge. Cliquez sur "Mettre a jour les libelles" pour synchroniser.'
                               : `Aucune reponse trouvee (${selectedSubmission.answers.length} reponse(s) brute(s), ${questionMap.length} libelle(s)).`}

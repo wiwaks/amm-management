@@ -223,22 +223,10 @@ function ImportDashboard() {
 
   return (
     <>
-      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4">
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-            Rubrique import
-          </p>
-          <h1 className="font-display text-2xl font-semibold md:text-3xl">
-            Previsualisation et import
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Suivez les reponses, controlez le format, puis lancez l import
-            Supabase.
-          </p>
-        </header>
+      <div className="flex flex-1 flex-col gap-4 px-4 lg:px-6">
 
         <div className="shrink-0 grid gap-3 md:grid-cols-4">
-          <Card className="border-border/40">
+          <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
                 Total reponses
@@ -248,7 +236,7 @@ function ImportDashboard() {
               </CardTitle>
             </CardHeader>
           </Card>
-          <Card className="border-border/40">
+          <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
                 Importes
@@ -258,7 +246,7 @@ function ImportDashboard() {
               </CardTitle>
             </CardHeader>
           </Card>
-          <Card className="border-border/40">
+          <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
                 Modifies
@@ -268,7 +256,7 @@ function ImportDashboard() {
               </CardTitle>
             </CardHeader>
           </Card>
-          <Card className="border-border/40">
+          <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
                 Ignores
@@ -296,7 +284,7 @@ function ImportDashboard() {
         ) : null}
 
         <div className="grid min-h-0 min-w-0 flex-1 gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-          <Card className="flex min-h-0 min-w-0 flex-col border-border/50">
+          <Card className="flex min-h-0 min-w-0 flex-col border">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -331,7 +319,7 @@ function ImportDashboard() {
                 </Button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/50">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
@@ -378,14 +366,14 @@ function ImportDashboard() {
                   </TableBody>
                 </Table>
               </div>
-              <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+              <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
                 Le JSON brut est masque pour garder une vue compacte.
               </div>
             </CardContent>
           </Card>
 
           <div className="grid min-h-0 min-w-0 gap-4 lg:grid-rows-[auto_1fr]">
-            <Card className="flex min-h-0 min-w-0 flex-col border-border/50">
+            <Card className="flex min-h-0 min-w-0 flex-col border">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -420,13 +408,13 @@ function ImportDashboard() {
                     ? 'Normalisation...'
                     : 'Normaliser les reponses'}
                 </Button>
-                <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+                <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
                   Le resultat brut est masque pour garder une vue compacte.
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 min-w-0 flex-col border-border/50">
+            <Card className="flex min-h-0 min-w-0 flex-col border">
               <CardHeader>
                 <CardTitle className="text-base">Aide memoire</CardTitle>
                 <CardDescription>Points de vigilance avant import</CardDescription>

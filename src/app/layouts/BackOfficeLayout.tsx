@@ -21,10 +21,12 @@ export default function BackOfficeLayout({ children }: BackOfficeLayoutProps) {
   return (
     <SidebarProvider>
       <AppSidebar session={session} onLogout={handleLogout} />
-      <SidebarInset className="min-h-[100dvh] overflow-hidden">
-        <SiteHeader session={session} />
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6">
-          {children}
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col gap-4 py-4 md:gap-6 md:py-6">
+            {children}
+          </div>
         </div>
       </SidebarInset>
     </SidebarProvider>

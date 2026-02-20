@@ -3,13 +3,13 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../utils/cn'
 
 const toastVariants = cva(
-  'pointer-events-auto w-full max-w-sm rounded-2xl border px-4 py-3 shadow-lg backdrop-blur',
+  'pointer-events-auto w-full max-w-sm rounded-lg border px-4 py-3 shadow-lg',
   {
     variants: {
       variant: {
-        info: 'border-border/60 bg-card/90 text-foreground',
+        info: 'border bg-card text-foreground',
         success: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-700',
-        error: 'border-rose-500/40 bg-rose-500/15 text-rose-700',
+        error: 'border-destructive/40 bg-destructive/10 text-destructive',
       },
     },
     defaultVariants: {
@@ -38,7 +38,7 @@ function Toast({
     variant === 'success'
       ? 'text-emerald-700/80'
       : variant === 'error'
-        ? 'text-rose-700/80'
+        ? 'text-destructive/80'
         : 'text-muted-foreground'
 
   return (
@@ -54,7 +54,7 @@ function Toast({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-border/60 px-2 py-1 text-xs uppercase tracking-[0.2em] text-muted-foreground transition hover:text-foreground"
+            className="rounded-md border px-2 py-1 text-xs text-muted-foreground transition hover:text-foreground"
           >
             Fermer
           </button>

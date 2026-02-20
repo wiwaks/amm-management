@@ -77,7 +77,7 @@ function InfoField({ label, value }: { label: string; value: string | null | und
   if (!value) return null
   return (
     <div>
-      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
+      <p className="text-xs uppercase text-muted-foreground">{label}</p>
       <p className="font-medium">{String(value)}</p>
     </div>
   )
@@ -129,13 +129,13 @@ function EditableField({
   onChange: (val: unknown) => void
 }) {
   const inputCls =
-    'w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
   switch (config.type) {
     case 'text':
       return (
         <div>
-          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          <label className="mb-1 block text-xs uppercase text-muted-foreground">
             {config.label}
           </label>
           <input
@@ -150,7 +150,7 @@ function EditableField({
     case 'textarea':
       return (
         <div className="sm:col-span-2 lg:col-span-3">
-          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          <label className="mb-1 block text-xs uppercase text-muted-foreground">
             {config.label}
           </label>
           <textarea
@@ -165,7 +165,7 @@ function EditableField({
     case 'number':
       return (
         <div>
-          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          <label className="mb-1 block text-xs uppercase text-muted-foreground">
             {config.label}
           </label>
           <input
@@ -182,7 +182,7 @@ function EditableField({
     case 'select':
       return (
         <div>
-          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          <label className="mb-1 block text-xs uppercase text-muted-foreground">
             {config.label}
           </label>
           <select
@@ -203,7 +203,7 @@ function EditableField({
     case 'boolean':
       return (
         <div>
-          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          <label className="mb-1 block text-xs uppercase text-muted-foreground">
             {config.label}
           </label>
           <div className="flex gap-4 pt-1">
@@ -233,7 +233,7 @@ function EditableField({
     case 'multiselect':
       return (
         <div className="sm:col-span-2 lg:col-span-3">
-          <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          <label className="mb-1 block text-xs uppercase text-muted-foreground">
             {config.label}
           </label>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -259,7 +259,7 @@ function EditableField({
                     'rounded-full border px-3 py-1 text-xs font-medium transition',
                     selected
                       ? 'border-primary bg-primary/15 text-primary'
-                      : 'border-border/60 bg-white/70 text-muted-foreground hover:border-primary/40',
+                      : 'border bg-background text-muted-foreground hover:border-primary/40',
                   )}
                 >
                   {opt.label}
@@ -300,7 +300,7 @@ function SectionBlock({
 
   return (
     <div>
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+      <h3 className="mb-3 text-xs font-semibold uppercase text-muted-foreground">
         {section.title}
       </h3>
       <div
@@ -308,7 +308,7 @@ function SectionBlock({
           'grid gap-3 rounded-2xl border p-4 sm:grid-cols-2 lg:grid-cols-3',
           isEditing
             ? 'border-primary/40 bg-primary/5'
-            : 'border-border/60 bg-muted/30',
+            : 'border bg-muted/50',
         )}
       >
         {isEditing
@@ -526,7 +526,7 @@ function ModerationDashboard() {
         <div className="flex items-center gap-3">
           <Shield className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="font-display text-2xl font-semibold">Moderation des profils</h1>
+            <h1 className="text-2xl font-semibold">Moderation des profils</h1>
             <p className="text-sm text-muted-foreground">
               {profiles.length} profil{profiles.length !== 1 ? 's' : ''} en attente de validation
             </p>
@@ -545,7 +545,7 @@ function ModerationDashboard() {
 
         {/* Grid of profile cards */}
         {profiles.length === 0 && !loadMutation.isPending ? (
-          <Card className="border-border/60 bg-card/80">
+          <Card className="border">
             <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
               <CheckCircle2 className="h-12 w-12 text-muted-foreground/40" />
               <p className="text-muted-foreground">Aucun profil en attente</p>
@@ -556,7 +556,7 @@ function ModerationDashboard() {
             {profiles.map((profile) => (
               <Card
                 key={profile.user_id}
-                className="group cursor-pointer overflow-hidden border-border/60 bg-card/80 transition-all hover:border-primary/40 hover:shadow-lg"
+                className="group cursor-pointer overflow-hidden border transition-all hover:border-primary/40 hover:shadow-lg"
                 onClick={() => detailMutation.mutate(profile.user_id)}
               >
                 {/* Photo */}
@@ -634,7 +634,7 @@ function ModerationDashboard() {
                 {/* Modal header */}
                 <div className="z-10 flex items-center justify-between border-b border-border bg-background/95 p-4 backdrop-blur sm:p-6">
                   <div>
-                    <h2 className="font-display text-2xl font-semibold">
+                    <h2 className="text-2xl font-semibold">
                       {selectedProfile.profile.first_name ?? '?'}{' '}
                       {selectedProfile.profile.last_name ?? ''}
                       {selectedProfile.profile.age_years
@@ -679,7 +679,7 @@ function ModerationDashboard() {
                   <div className="space-y-6 p-4 sm:p-6">
                     {/* Photos grid (always read-only) */}
                     <div>
-                      <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      <h3 className="mb-3 text-xs font-semibold uppercase text-muted-foreground">
                         Photos
                       </h3>
                       {selectedProfile.photos.length > 0 ? (
@@ -739,7 +739,7 @@ function ModerationDashboard() {
                     {/* Missing fields */}
                     {completion.missing.length > 0 && (
                       <div>
-                        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                        <h3 className="mb-3 text-xs font-semibold uppercase text-muted-foreground">
                           Champs manquants ({completion.missing.length})
                         </h3>
                         <div className="flex flex-wrap items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
@@ -760,7 +760,7 @@ function ModerationDashboard() {
                     {/* Reject reason input */}
                     {showRejectInput && (
                       <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
-                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-destructive">
+                        <label className="mb-2 block text-xs font-semibold uppercase text-destructive">
                           Motif du rejet
                         </label>
                         <textarea
@@ -768,7 +768,7 @@ function ModerationDashboard() {
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
                           rows={3}
-                          className="w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 text-sm focus:border-destructive focus:outline-none"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none"
                           placeholder="Ex: Photos inappropriees, profil incomplet, contenu offensant..."
                         />
                         <div className="mt-3 flex gap-2">
