@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { ChevronsUpDown, LogOut } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { NAV_MAIN, NAV_SECONDARY, type NavItem } from '../../shared/navigation'
