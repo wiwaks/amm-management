@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
-import { LogOut } from 'lucide-react'
+import { useCallback, useEffect } from 'react'
+import { ChevronsUpDown, LogOut } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { NAV_MAIN, NAV_SECONDARY, type NavItem } from '../../shared/navigation'
 import type { UserSession } from '../../shared/types'
-import { Button } from '../../shared/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../shared/components/ui/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -25,32 +32,38 @@ type AppSidebarProps = {
   onLogout: () => void
 }
 
-function formatTimeLeft(ms: number): string {
-  if (ms <= 0) return 'Expiree'
-  const totalSec = Math.floor(ms / 1000)
-  const m = Math.floor(totalSec / 60)
-  const s = totalSec % 60
-  return `${m}m ${s.toString().padStart(2, '0')}s`
+
+function getInitials(displayName?: string, email?: string): string {
+  if (displayName) {
+    const parts = displayName.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    }
+    return parts[0].slice(0, 2).toUpperCase()
+  }
+  if (email) {
+    return email.slice(0, 2).toUpperCase()
+  }
+  return '?'
 }
 
-function SessionCountdown({ expiresAt }: { expiresAt: string }) {
-  const [timeLeft, setTimeLeft] = useState(() => new Date(expiresAt).getTime() - Date.now())
+function UserAvatar({ session }: { session: UserSession }) {
+  const initials = getInitials(session.displayName, session.email)
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeLeft(new Date(expiresAt).getTime() - Date.now())
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [expiresAt])
-
-  const isLow = timeLeft > 0 && timeLeft < 5 * 60 * 1000
+  if (session.avatarUrl) {
+    return (
+      <img
+        src={session.avatarUrl}
+        alt={session.displayName ?? 'Avatar'}
+        className="size-8 shrink-0 rounded-full object-cover"
+        referrerPolicy="no-referrer"
+      />
+    )
+  }
 
   return (
-    <div className="px-2 py-1 text-center text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
-      Expire dans{' '}
-      <span className={isLow ? 'font-medium text-destructive' : ''}>
-        {formatTimeLeft(timeLeft)}
-      </span>
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+      {initials}
     </div>
   )
 }
@@ -159,20 +172,58 @@ function AppSidebar({ session, onLogout }: AppSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onLogout}
-          className="w-full group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:px-0"
-        >
-          <LogOut className="size-4" />
-          <span className="group-data-[collapsible=icon]:hidden">
-            Deconnexion
-          </span>
-        </Button>
         {session ? (
-          <SessionCountdown expiresAt={session.expiresAt} />
+          <>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      size="lg"
+                      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                    >
+                      <UserAvatar session={session} />
+                      <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-medium">
+                          {session.displayName || 'Utilisateur'}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {session.email || ''}
+                        </span>
+                      </div>
+                      <ChevronsUpDown className="ml-auto size-4" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                    side={isMobile ? 'bottom' : 'right'}
+                    align="end"
+                    sideOffset={4}
+                  >
+                    <DropdownMenuLabel className="p-0 font-normal">
+                      <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                        <UserAvatar session={session} />
+                        <div className="grid flex-1 text-left text-sm leading-tight">
+                          <span className="truncate font-medium">
+                            {session.displayName || 'Utilisateur'}
+                          </span>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {session.email || ''}
+                          </span>
+                        </div>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onLogout}>
+                      <LogOut className="mr-2 size-4" />
+                      Déconnexion
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+
+          </>
         ) : null}
       </SidebarFooter>
     </Sidebar>

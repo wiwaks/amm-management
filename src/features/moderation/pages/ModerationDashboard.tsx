@@ -20,6 +20,7 @@ import {
   CardContent,
 } from '../../../shared/components/ui/card'
 import { Badge } from '../../../shared/components/ui/badge'
+import { Skeleton } from '../../../shared/components/ui/skeleton'
 import { Toast } from '../../../shared/components/ui/toast'
 import {
   Shield,
@@ -544,7 +545,22 @@ function ModerationDashboard() {
         </div>
 
         {/* Grid of profile cards */}
-        {profiles.length === 0 && !loadMutation.isPending ? (
+        {loadMutation.isPending ? (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Card key={i} className="overflow-hidden border">
+                <Skeleton className="aspect-[3/4] w-full rounded-none" />
+                <CardContent className="space-y-2 p-3">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-5 w-10 rounded-full" />
+                  </div>
+                  <Skeleton className="h-3 w-24" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : profiles.length === 0 ? (
           <Card className="border">
             <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
               <CheckCircle2 className="h-12 w-12 text-muted-foreground/40" />
@@ -621,6 +637,53 @@ function ModerationDashboard() {
                 variant={toast.variant}
                 onClose={() => setToast(null)}
               />
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {/* ── Skeleton detail modal (loading) ── */}
+      {detailMutation.isPending && !selectedProfile
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className="relative flex h-[calc(100dvh-2rem)] w-full max-w-none flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:h-[min(92dvh,900px)] sm:w-[min(94vw,1200px)] sm:rounded-3xl xl:w-[min(90vw,1320px)]">
+                {/* Skeleton header */}
+                <div className="flex items-center justify-between border-b border-border p-4 sm:p-6">
+                  <div className="space-y-2">
+                    <Skeleton className="h-7 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="h-9 w-20 rounded-md" />
+                </div>
+                {/* Skeleton body */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="space-y-6 p-4 sm:p-6">
+                    {/* Skeleton photos */}
+                    <div>
+                      <Skeleton className="mb-3 h-3 w-16" />
+                      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
+                        ))}
+                      </div>
+                    </div>
+                    {/* Skeleton sections */}
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i}>
+                        <Skeleton className="mb-3 h-3 w-24" />
+                        <div className="grid gap-3 rounded-2xl border p-4 sm:grid-cols-2 lg:grid-cols-3">
+                          {Array.from({ length: 6 }).map((_, j) => (
+                            <div key={j} className="space-y-1.5">
+                              <Skeleton className="h-3 w-16" />
+                              <Skeleton className="h-5 w-full" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>,
             document.body,
           )
