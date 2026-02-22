@@ -110,7 +110,7 @@ function ImportDashboard() {
         throw new Error('Missing VITE_GOOGLE_FORM_ID.')
       }
       if (!accessToken) {
-        throw new Error('Session expiree. Reconnectez-vous.')
+        throw new Error('Session expirée. Reconnectez-vous.')
       }
       return fetchFormResponses(formId, accessToken)
     },
@@ -118,14 +118,14 @@ function ImportDashboard() {
       const preview = data as GoogleFormsPreview
       const total = preview.totalResponses ?? preview.responses?.length ?? 0
       setToast({
-        title: 'Previsualisation chargee',
-        description: `${total} reponses detectees.`,
+        title: 'Prévisualisation chargée',
+        description: `${total} réponses détectées.`,
         variant: 'info',
       })
     },
     onError: (error) => {
       setToast({
-        title: 'Erreur de previsualisation',
+        title: 'Erreur de prévisualisation',
         description: error.message,
         variant: 'error',
       })
@@ -136,8 +136,8 @@ function ImportDashboard() {
     mutationFn: normalizeAllSubmissions,
     onSuccess: ({ total, normalized, answersCreated }) => {
       setToast({
-        title: 'Normalisation terminee',
-        description: `${normalized} / ${total} soumissions normalisees | ${answersCreated} reponses creees.`,
+        title: 'Normalisation terminée',
+        description: `${normalized} / ${total} soumissions normalisées | ${answersCreated} réponses créées.`,
         variant: 'success',
       })
     },
@@ -162,7 +162,7 @@ function ImportDashboard() {
         throw new Error('Missing VITE_IMPORT_ENDPOINT.')
       }
       if (!accessToken) {
-        throw new Error('Session expiree. Reconnectez-vous.')
+        throw new Error('Session expirée. Reconnectez-vous.')
       }
 
       const response = await fetch(importEndpoint, {
@@ -193,10 +193,10 @@ function ImportDashboard() {
       const { total, imported, updated, skipped } = data
       const totalLabel = total ?? imported ?? 0
       setToast({
-        title: 'Import termine',
-        description: `Importes ${imported ?? 0} / ${totalLabel} | Modifies ${
+        title: 'Import terminé',
+        description: `Importés ${imported ?? 0} / ${totalLabel} | Modifiés ${
           updated ?? 0
-        } | Ignores ${skipped ?? 0}`,
+        } | Ignorés ${skipped ?? 0}`,
         variant: 'success',
       })
     },
@@ -229,7 +229,7 @@ function ImportDashboard() {
           <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
-                Total reponses
+                Total réponses
               </CardDescription>
               <CardTitle className="text-2xl font-bold tabular-nums">
                 {totalResponses || '--'}
@@ -239,7 +239,7 @@ function ImportDashboard() {
           <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
-                Importes
+                Importés
               </CardDescription>
               <CardTitle className="text-2xl font-bold tabular-nums text-emerald-600">
                 {importStats?.imported ?? '--'}
@@ -249,7 +249,7 @@ function ImportDashboard() {
           <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
-                Modifies
+                Modifiés
               </CardDescription>
               <CardTitle className="text-2xl font-bold tabular-nums text-amber-600">
                 {importStats?.updated ?? '--'}
@@ -259,7 +259,7 @@ function ImportDashboard() {
           <Card className="border">
             <CardHeader className="pb-2 pt-4">
               <CardDescription className="text-xs uppercase tracking-wider">
-                Ignores
+                Ignorés
               </CardDescription>
               <CardTitle className="text-2xl font-bold tabular-nums text-slate-500">
                 {importStats?.skipped ?? '--'}
@@ -278,7 +278,7 @@ function ImportDashboard() {
                   clipRule="evenodd"
                 />
               </svg>
-              <span className="font-medium">Import effectue avec succes</span>
+              <span className="font-medium">Import effectué avec succès</span>
             </div>
           </div>
         ) : null}
@@ -288,9 +288,9 @@ function ImportDashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Previsualisation des reponses</CardTitle>
+                  <CardTitle>Prévisualisation des réponses</CardTitle>
                   <CardDescription>
-                    Les 4 dernieres reponses Google Forms
+                    Les 4 dernières réponses Google Forms
                   </CardDescription>
                 </div>
                 <Badge variant={previewMutation.isSuccess ? 'success' : 'outline'}>
@@ -306,7 +306,7 @@ function ImportDashboard() {
                   onClick={() => previewMutation.mutate()}
                   disabled={previewMutation.isPending}
                 >
-                  {previewMutation.isPending ? 'Chargement...' : "Charger l apercu"}
+                  {previewMutation.isPending ? 'Chargement...' : "Charger l'aperçu"}
                 </Button>
                 <Button
                   type="button"
@@ -315,7 +315,7 @@ function ImportDashboard() {
                   onClick={() => previewMutation.mutate()}
                   disabled={previewMutation.isPending}
                 >
-                  Rafraichir
+                  Rafraîchir
                 </Button>
               </div>
 
@@ -325,7 +325,7 @@ function ImportDashboard() {
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="h-10">Response ID</TableHead>
                       <TableHead className="h-10">Soumis</TableHead>
-                      <TableHead className="h-10">Reponses</TableHead>
+                      <TableHead className="h-10">Réponses</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -335,7 +335,7 @@ function ImportDashboard() {
                           colSpan={3}
                           className="h-24 text-center text-muted-foreground"
                         >
-                          Aucune reponse a afficher pour le moment.
+                          Aucune réponse à afficher pour le moment.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -367,7 +367,7 @@ function ImportDashboard() {
                 </Table>
               </div>
               <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
-                Le JSON brut est masque pour garder une vue compacte.
+                Le JSON brut est masqué pour garder une vue compacte.
               </div>
             </CardContent>
           </Card>
@@ -377,11 +377,11 @@ function ImportDashboard() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Actions d import</CardTitle>
-                    <CardDescription>Importer et normaliser les donnees</CardDescription>
+                    <CardTitle>Actions d'import</CardTitle>
+                    <CardDescription>Importer et normaliser les données</CardDescription>
                   </div>
                   <Badge variant={importMutation.isSuccess ? 'success' : 'outline'}>
-                    {importMutation.isSuccess ? 'Termine' : 'Pret'}
+                    {importMutation.isSuccess ? 'Terminé' : 'Prêt'}
                   </Badge>
                 </div>
               </CardHeader>
@@ -406,36 +406,36 @@ function ImportDashboard() {
                 >
                   {normalizeMutation.isPending
                     ? 'Normalisation...'
-                    : 'Normaliser les reponses'}
+                    : 'Normaliser les réponses'}
                 </Button>
                 <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
-                  Le resultat brut est masque pour garder une vue compacte.
+                  Le résultat brut est masqué pour garder une vue compacte.
                 </div>
               </CardContent>
             </Card>
 
             <Card className="flex min-h-0 min-w-0 flex-col border">
               <CardHeader>
-                <CardTitle className="text-base">Aide memoire</CardTitle>
+                <CardTitle className="text-base">Aide-mémoire</CardTitle>
                 <CardDescription>Points de vigilance avant import</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2.5">
                 <div className="flex gap-2 text-sm">
                   <span className="text-muted-foreground">-</span>
                   <p className="text-muted-foreground">
-                    Verifier le mapping des champs avant l import
+                    Vérifier le mapping des champs avant l'import
                   </p>
                 </div>
                 <div className="flex gap-2 text-sm">
                   <span className="text-muted-foreground">-</span>
                   <p className="text-muted-foreground">
-                    Controler les doublons sur la table Supabase
+                    Contrôler les doublons sur la table Supabase
                   </p>
                 </div>
                 <div className="flex gap-2 text-sm">
                   <span className="text-muted-foreground">-</span>
                   <p className="text-muted-foreground">
-                    Mettre a jour le formulaire si besoin
+                    Mettre à jour le formulaire si besoin
                   </p>
                 </div>
               </CardContent>

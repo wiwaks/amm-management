@@ -382,7 +382,7 @@ function ModerationDashboard() {
   const approveMutation = useMutation({
     mutationFn: (userId: string) => approveProfile(userId),
     onSuccess: () => {
-      setToast({ title: 'Approuve', description: 'Le profil a ete valide.', variant: 'success' })
+      setToast({ title: 'Approuvé', description: 'Le profil a été validé.', variant: 'success' })
       setSelectedProfile(null)
       resetEditState()
       loadMutation.mutate()
@@ -396,7 +396,7 @@ function ModerationDashboard() {
     mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
       rejectProfile(userId, reason),
     onSuccess: () => {
-      setToast({ title: 'Rejete', description: 'Le profil a ete rejete.', variant: 'info' })
+      setToast({ title: 'Rejeté', description: 'Le profil a été rejeté.', variant: 'info' })
       setSelectedProfile(null)
       resetEditState()
       loadMutation.mutate()
@@ -431,7 +431,7 @@ function ModerationDashboard() {
     onSuccess: () => {
       setToast({
         title: 'Sauvegarde',
-        description: `${dirtyFields.size} champ(s) mis a jour.`,
+        description: `${dirtyFields.size} champ(s) mis à jour.`,
         variant: 'success',
       })
       // Re-fetch fresh data
@@ -526,7 +526,7 @@ function ModerationDashboard() {
         <div className="flex items-center gap-3">
           <Shield className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="text-2xl font-semibold">Moderation des profils</h1>
+            <h1 className="text-2xl font-semibold">Modération des profils</h1>
             <p className="text-sm text-muted-foreground">
               {profiles.length} profil{profiles.length !== 1 ? 's' : ''} en attente de validation
             </p>
@@ -539,7 +539,7 @@ function ModerationDashboard() {
             onClick={() => loadMutation.mutate()}
             disabled={loadMutation.isPending}
           >
-            {loadMutation.isPending ? 'Chargement...' : 'Rafraichir'}
+            {loadMutation.isPending ? 'Chargement...' : 'Rafraîchir'}
           </Button>
         </div>
 
@@ -702,7 +702,7 @@ function ModerationDashboard() {
                                   ? 'Principale'
                                   : photo.album === 'public'
                                     ? `Public ${photo.position + 1}`
-                                    : `Prive ${photo.position + 1}`}
+                                    : `Privé ${photo.position + 1}`}
                               </Badge>
                             </div>
                           ))}
@@ -769,7 +769,7 @@ function ModerationDashboard() {
                           onChange={(e) => setRejectReason(e.target.value)}
                           rows={3}
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none"
-                          placeholder="Ex: Photos inappropriees, profil incomplet, contenu offensant..."
+                          placeholder="Ex: Photos inappropriées, profil incomplet, contenu offensant..."
                         />
                         <div className="mt-3 flex gap-2">
                           <Button
@@ -803,7 +803,7 @@ function ModerationDashboard() {
                   <div className="flex items-center justify-between border-t border-border bg-background/95 p-4 backdrop-blur sm:p-6">
                     <p className="text-xs text-muted-foreground">
                       {dirtyFields.size} champ{dirtyFields.size !== 1 ? 's' : ''}{' '}
-                      modifie{dirtyFields.size !== 1 ? 's' : ''}
+                      modifié{dirtyFields.size !== 1 ? 's' : ''}
                     </p>
                     <Button
                       type="button"
