@@ -170,7 +170,7 @@ function EditableField({
           </label>
           <input
             type="number"
-            value={value ?? ''}
+            value={(value as number) ?? ''}
             onChange={(e) =>
               onChange(e.target.value ? Number(e.target.value) : null)
             }

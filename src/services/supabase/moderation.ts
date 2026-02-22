@@ -1,8 +1,3 @@
-import { supabaseAdmin } from './client'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-const BUCKET = 'photos'
-
 // ── Types ──
 
 export type PendingProfile = {
@@ -98,8 +93,35 @@ export type UserPhoto = {
 
 // ── Helpers ──
 
-function getPublicUrl(storagePath: string): string {
-  return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${storagePath}`
+const ENDPOINT = import.meta.env.VITE_MODERATION_ENDPOINT as string | undefined
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+async function callModeration<T>(body: Record<string, unknown>): Promise<T> {
+  if (!ENDPOINT) throw new Error('Missing VITE_MODERATION_ENDPOINT.')
+  if (!ANON_KEY) throw new Error('Missing VITE_SUPABASE_ANON_KEY.')
+
+  const response = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(
+      `Moderation request failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ''}`,
+    )
+  }
+
+  const payload = (await response.json()) as { ok: boolean; data: T; error?: string }
+  if (!payload.ok) {
+    throw new Error(payload.error || 'Moderation request failed.')
+  }
+
+  return payload.data
 }
 
 /** Profile fields that count towards completion (excludes system fields). */
@@ -149,129 +171,42 @@ export function computeCompletion(
 // ── Queries ──
 
 export async function fetchPendingProfiles(): Promise<PendingProfile[]> {
-  const { data: profiles, error } = await supabaseAdmin
-    .from('profiles')
-    .select(
-      'user_id, first_name, last_name, age_years, gender, city, zone, profession, bio_short, completion_score, verification_status, created_at',
-    )
-    .eq('verification_status', 'pending')
-    .order('created_at', { ascending: true })
-
-  if (error) throw error
-  if (!profiles || profiles.length === 0) return []
-
-  // Fetch main photos for all pending profiles
-  const userIds = profiles.map((p) => p.user_id)
-  const { data: photos } = await supabaseAdmin
-    .from('user_photos')
-    .select('user_id, storage_path')
-    .in('user_id', userIds)
-    .eq('album', 'main')
-
-  const photoMap = new Map<string, string>()
-  for (const photo of photos ?? []) {
-    photoMap.set(photo.user_id, getPublicUrl(photo.storage_path))
-  }
-
-  return profiles.map((p) => ({
-    ...p,
-    main_photo_url: photoMap.get(p.user_id) ?? null,
-  }))
+  return callModeration<PendingProfile[]>({ action: 'fetchPendingProfiles' })
 }
 
 export async function fetchProfileDetail(
   userId: string,
 ): Promise<{ profile: ProfileDetail; photos: UserPhoto[]; funFacts: FunFacts | null } | null> {
-  const { data: profile, error } = await supabaseAdmin
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
-
-  if (error || !profile) return null
-
-  const [photosResult, funFactsResult] = await Promise.all([
-    supabaseAdmin
-      .from('user_photos')
-      .select('id, user_id, album, position, storage_path')
-      .eq('user_id', userId)
-      .order('album')
-      .order('position'),
-    supabaseAdmin
-      .from('fun_facts')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle(),
-  ])
-
-  return {
-    profile: profile as ProfileDetail,
-    photos: photosResult.data ?? [],
-    funFacts: (funFactsResult.data as FunFacts) ?? null,
-  }
+  return callModeration<{
+    profile: ProfileDetail
+    photos: UserPhoto[]
+    funFacts: FunFacts | null
+  } | null>({ action: 'fetchProfileDetail', userId })
 }
 
 // ── Mutations ──
 
 export async function approveProfile(userId: string): Promise<void> {
-  const now = new Date().toISOString()
-
-  const { error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .update({
-      verification_status: 'approved',
-      verified_at: now,
-      visible_at: now,
-    })
-    .eq('user_id', userId)
-
-  if (profileError) throw profileError
-
-  const { error: userError } = await supabaseAdmin
-    .from('users')
-    .update({ status: 'active' })
-    .eq('id', userId)
-
-  if (userError) throw userError
+  await callModeration({ action: 'approveProfile', userId })
 }
 
 export async function rejectProfile(
   userId: string,
   reason: string,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('profiles')
-    .update({
-      verification_status: 'rejected',
-      rejection_reason: reason,
-    })
-    .eq('user_id', userId)
-
-  if (error) throw error
+  await callModeration({ action: 'rejectProfile', userId, reason })
 }
 
 export async function updateProfileFields(
   userId: string,
   fields: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('profiles')
-    .update(fields)
-    .eq('user_id', userId)
-
-  if (error) throw error
+  await callModeration({ action: 'updateProfileFields', userId, fields })
 }
 
 export async function updateFunFacts(
   userId: string,
   fields: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('fun_facts')
-    .upsert(
-      { user_id: userId, ...fields },
-      { onConflict: 'user_id' },
-    )
-
-  if (error) throw error
+  await callModeration({ action: 'updateFunFacts', userId, fields })
 }
