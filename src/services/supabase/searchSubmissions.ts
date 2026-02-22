@@ -7,12 +7,18 @@ export type SearchSubmission = {
   nom: string
   prenom: string
   telephone: string
+  age: string
+  genre: string
+  enfants: string
 }
 
 type SearchSubmissionsParams = {
   name?: string
   email?: string
   phone?: string
+  age?: string
+  gender?: string
+  children?: string
   limit?: number
   offset?: number
 }
@@ -50,6 +56,9 @@ export async function searchSubmissions(
       name: params.name,
       email: params.email,
       phone: params.phone,
+      age: params.age,
+      gender: params.gender,
+      children: params.children,
       limit: params.limit,
       offset: params.offset,
     }),

@@ -11,6 +11,9 @@ interface RequestBody {
   name?: string;
   email?: string;
   phone?: string;
+  age?: string;
+  gender?: string;
+  children?: string;
   limit?: number;
   offset?: number;
 }
@@ -24,6 +27,9 @@ interface SearchSubmissionRow {
   nom: string;
   prenom: string;
   telephone: string;
+  age: string;
+  genre: string;
+  enfants: string;
 }
 
 function normalizeTerm(value?: string): string | null {
@@ -61,6 +67,9 @@ Deno.serve(async (req: Request) => {
     const name = normalizeTerm(body.name);
     const email = normalizeTerm(body.email);
     const phone = normalizeTerm(body.phone);
+    const age = normalizeTerm(body.age);
+    const gender = normalizeTerm(body.gender);
+    const children = normalizeTerm(body.children);
     const limit = clampNumber(body.limit, 1, 500, 200);
     const offset = clampNumber(body.offset, 0, 10_000, 0);
 
@@ -87,7 +96,20 @@ Deno.serve(async (req: Request) => {
               OR lower(label) LIKE '%mobile%'
               OR lower(label) LIKE '%numéro%'
               OR lower(label) LIKE '%numero%'
-          ) AS phone_qid
+          ) AS phone_qid,
+          max(question_id) FILTER (
+            WHERE lower(label) = 'âge'
+              OR lower(label) = 'age'
+          ) AS age_qid,
+          max(question_id) FILTER (
+            WHERE lower(label) LIKE 'êtes-vous%'
+              OR lower(label) LIKE '%sexe%'
+              OR lower(label) LIKE '%genre%'
+              OR lower(label) LIKE '%gender%'
+          ) AS gender_qid,
+          max(question_id) FILTER (
+            WHERE lower(label) LIKE '%avez-vous des enfant%'
+          ) AS children_qid
         FROM public.form_question_map
       ),
       aggregated_answers AS (
@@ -107,7 +129,22 @@ Deno.serve(async (req: Request) => {
             WHERE q.phone_qid IS NOT NULL
               AND fsa.question_id = q.phone_qid
               AND coalesce(fsa.value_text, '') <> ''
-          ) AS telephone
+          ) AS telephone,
+          string_agg(fsa.value_text, ', ' ORDER BY fsa.answer_index) FILTER (
+            WHERE q.age_qid IS NOT NULL
+              AND fsa.question_id = q.age_qid
+              AND coalesce(fsa.value_text, '') <> ''
+          ) AS age,
+          string_agg(fsa.value_text, ', ' ORDER BY fsa.answer_index) FILTER (
+            WHERE q.gender_qid IS NOT NULL
+              AND fsa.question_id = q.gender_qid
+              AND coalesce(fsa.value_text, '') <> ''
+          ) AS genre,
+          string_agg(fsa.value_text, ', ' ORDER BY fsa.answer_index) FILTER (
+            WHERE q.children_qid IS NOT NULL
+              AND fsa.question_id = q.children_qid
+              AND coalesce(fsa.value_text, '') <> ''
+          ) AS enfants
         FROM public.form_submission_answers fsa
         CROSS JOIN question_ids q
         GROUP BY fsa.submission_id
@@ -121,7 +158,10 @@ Deno.serve(async (req: Request) => {
           fs.phone,
           coalesce(aa.nom, '') AS nom,
           coalesce(aa.prenom, '') AS prenom,
-          coalesce(nullif(fs.phone, ''), aa.telephone, '') AS telephone
+          coalesce(nullif(fs.phone, ''), aa.telephone, '') AS telephone,
+          coalesce(aa.age, '') AS age,
+          coalesce(aa.genre, '') AS genre,
+          coalesce(aa.enfants, '') AS enfants
         FROM public.form_submissions fs
         LEFT JOIN aggregated_answers aa ON aa.submission_id = fs.id
       )
@@ -133,7 +173,10 @@ Deno.serve(async (req: Request) => {
         s.phone,
         s.nom,
         s.prenom,
-        s.telephone
+        s.telephone,
+        s.age,
+        s.genre,
+        s.enfants
       FROM search_base s
       WHERE (
         ${email}::text IS NULL
@@ -149,6 +192,18 @@ Deno.serve(async (req: Request) => {
         OR s.prenom ILIKE '%' || ${name} || '%'
         OR concat_ws(' ', s.prenom, s.nom) ILIKE '%' || ${name} || '%'
         OR concat_ws(' ', s.nom, s.prenom) ILIKE '%' || ${name} || '%'
+      )
+      AND (
+        ${age}::text IS NULL
+        OR s.age ILIKE '%' || ${age} || '%'
+      )
+      AND (
+        ${gender}::text IS NULL
+        OR s.genre ILIKE '%' || ${gender} || '%'
+      )
+      AND (
+        ${children}::text IS NULL
+        OR s.enfants ILIKE '%' || ${children} || '%'
       )
       ORDER BY coalesce(s.submitted_at, s.created_at) DESC
       LIMIT ${limit}

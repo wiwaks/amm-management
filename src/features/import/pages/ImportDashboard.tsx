@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { fetchFormResponses } from '../../../services/google/forms'
-import { normalizeAllSubmissions } from '../../../services/supabase/formSubmissionAnswers'
 import { getSession } from '../../../shared/auth/sessionManager'
 import type { ImportResult } from '../../../shared/types'
 import { Badge } from '../../../shared/components/ui/badge'
 import { Button } from '../../../shared/components/ui/button'
+import { Skeleton } from '../../../shared/components/ui/skeleton'
 import {
   Card,
   CardContent,
@@ -132,24 +132,6 @@ function ImportDashboard() {
     },
   })
 
-  const normalizeMutation = useMutation({
-    mutationFn: normalizeAllSubmissions,
-    onSuccess: ({ total, normalized, answersCreated }) => {
-      setToast({
-        title: 'Normalisation terminée',
-        description: `${normalized} / ${total} soumissions normalisées | ${answersCreated} réponses créées.`,
-        variant: 'success',
-      })
-    },
-    onError: (error) => {
-      setToast({
-        title: 'Erreur de normalisation',
-        description: error.message,
-        variant: 'error',
-      })
-    },
-  })
-
   const importMutation = useMutation<ImportResult, Error>({
     mutationFn: async () => {
       if (!formId) {
@@ -216,7 +198,7 @@ function ImportDashboard() {
   }, [toast])
 
   const previewData = previewMutation.data as GoogleFormsPreview | undefined
-  const responses = previewData?.responses ?? []
+  const responses = useMemo(() => previewData?.responses ?? [], [previewData])
   const previewRows = useMemo(() => responses.slice(0, 4), [responses])
   const totalResponses = previewData?.totalResponses ?? responses.length
   const importStats = importMutation.data
@@ -329,7 +311,20 @@ function ImportDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {previewRows.length === 0 ? (
+                    {previewMutation.isPending ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="py-2.5"><Skeleton className="h-4 w-20 font-mono" /></TableCell>
+                          <TableCell className="py-2.5"><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell className="py-2.5">
+                            <div className="space-y-1">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : previewRows.length === 0 ? (
                       <TableRow>
                         <TableCell
                           colSpan={3}
@@ -378,38 +373,28 @@ function ImportDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>Actions d'import</CardTitle>
-                    <CardDescription>Importer et normaliser les données</CardDescription>
+                    <CardDescription>Synchroniser les données Google Forms</CardDescription>
                   </div>
                   <Badge variant={importMutation.isSuccess ? 'success' : 'outline'}>
                     {importMutation.isSuccess ? 'Terminé' : 'Prêt'}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2.5">
-                <Button
-                  type="button"
-                  onClick={() => importMutation.mutate()}
-                  disabled={importMutation.isPending}
-                  className="w-full"
-                >
-                  {importMutation.isPending
-                    ? 'Import en cours...'
-                    : 'Importer dans Supabase'}
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => normalizeMutation.mutate()}
-                  disabled={normalizeMutation.isPending}
-                  className="w-full"
-                >
-                  {normalizeMutation.isPending
-                    ? 'Normalisation...'
-                    : 'Normaliser les réponses'}
-                </Button>
-                <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
-                  Le résultat brut est masqué pour garder une vue compacte.
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Button
+                    type="button"
+                    onClick={() => importMutation.mutate()}
+                    disabled={importMutation.isPending}
+                    className="w-full"
+                  >
+                    {importMutation.isPending
+                      ? 'Import en cours...'
+                      : 'Importer dans Supabase'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Récupère les réponses Google Forms, les enregistre dans Supabase et normalise automatiquement les champs (nom, email, téléphone…) pour la recherche.
+                  </p>
                 </div>
               </CardContent>
             </Card>

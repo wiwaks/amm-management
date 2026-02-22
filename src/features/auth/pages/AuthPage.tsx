@@ -69,7 +69,11 @@ function AuthPage() {
               }
 
               setTokenError(null)
-              createSession(response.access_token)
+              createSession(response.access_token, {
+                email: response.email,
+                displayName: response.displayName,
+                avatarUrl: response.avatarUrl,
+              })
               navigate('/dashboard')
             }
           },

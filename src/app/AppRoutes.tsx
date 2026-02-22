@@ -19,36 +19,13 @@ export default function AppRoutes() {
             </AuthLayout>
           }
         />
-        <Route
-          path="/dashboard"
-          element={
-            <RequireAuth>
-              <BackOfficeLayout>
-                <ImportDashboard />
-              </BackOfficeLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/recherche"
-          element={
-            <RequireAuth>
-              <BackOfficeLayout>
-                <RechercheDashboard />
-              </BackOfficeLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/moderation"
-          element={
-            <RequireAuth>
-              <BackOfficeLayout>
-                <ModerationDashboard />
-              </BackOfficeLayout>
-            </RequireAuth>
-          }
-        />
+        <Route element={<RequireAuth />}>
+          <Route element={<BackOfficeLayout />}>
+            <Route path="/dashboard" element={<ImportDashboard />} />
+            <Route path="/recherche" element={<RechercheDashboard />} />
+            <Route path="/moderation" element={<ModerationDashboard />} />
+          </Route>
+        </Route>
       </Routes>
     </BrowserRouter>
   )

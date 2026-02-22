@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { LogOut } from 'lucide-react'
+import { ChevronsUpDown, LogOut } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { NAV_MAIN, NAV_SECONDARY, type NavItem } from '../../shared/navigation'
 import type { UserSession } from '../../shared/types'
-import { Button } from '../../shared/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../shared/components/ui/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -26,7 +33,7 @@ type AppSidebarProps = {
 }
 
 function formatTimeLeft(ms: number): string {
-  if (ms <= 0) return 'Expiree'
+  if (ms <= 0) return 'Expirée'
   const totalSec = Math.floor(ms / 1000)
   const m = Math.floor(totalSec / 60)
   const s = totalSec % 60
@@ -51,6 +58,41 @@ function SessionCountdown({ expiresAt }: { expiresAt: string }) {
       <span className={isLow ? 'font-medium text-destructive' : ''}>
         {formatTimeLeft(timeLeft)}
       </span>
+    </div>
+  )
+}
+
+function getInitials(displayName?: string, email?: string): string {
+  if (displayName) {
+    const parts = displayName.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    }
+    return parts[0].slice(0, 2).toUpperCase()
+  }
+  if (email) {
+    return email.slice(0, 2).toUpperCase()
+  }
+  return '?'
+}
+
+function UserAvatar({ session }: { session: UserSession }) {
+  const initials = getInitials(session.displayName, session.email)
+
+  if (session.avatarUrl) {
+    return (
+      <img
+        src={session.avatarUrl}
+        alt={session.displayName ?? 'Avatar'}
+        className="size-8 shrink-0 rounded-full object-cover"
+        referrerPolicy="no-referrer"
+      />
+    )
+  }
+
+  return (
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+      {initials}
     </div>
   )
 }
@@ -159,20 +201,58 @@ function AppSidebar({ session, onLogout }: AppSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onLogout}
-          className="w-full group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:px-0"
-        >
-          <LogOut className="size-4" />
-          <span className="group-data-[collapsible=icon]:hidden">
-            Deconnexion
-          </span>
-        </Button>
         {session ? (
-          <SessionCountdown expiresAt={session.expiresAt} />
+          <>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      size="lg"
+                      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                    >
+                      <UserAvatar session={session} />
+                      <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-medium">
+                          {session.displayName || 'Utilisateur'}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {session.email || ''}
+                        </span>
+                      </div>
+                      <ChevronsUpDown className="ml-auto size-4" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                    side={isMobile ? 'bottom' : 'right'}
+                    align="end"
+                    sideOffset={4}
+                  >
+                    <DropdownMenuLabel className="p-0 font-normal">
+                      <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                        <UserAvatar session={session} />
+                        <div className="grid flex-1 text-left text-sm leading-tight">
+                          <span className="truncate font-medium">
+                            {session.displayName || 'Utilisateur'}
+                          </span>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {session.email || ''}
+                          </span>
+                        </div>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onLogout}>
+                      <LogOut className="mr-2 size-4" />
+                      Déconnexion
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <SessionCountdown expiresAt={session.expiresAt} />
+          </>
         ) : null}
       </SidebarFooter>
     </Sidebar>

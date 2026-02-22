@@ -5,7 +5,9 @@ export type GoogleTokenResponse = {
   scope?: string
   error?: string
   error_description?: string
-  email?: string 
+  email?: string
+  displayName?: string
+  avatarUrl?: string
 }
 
 export type GoogleTokenClient = {
@@ -44,10 +46,11 @@ export function createGoogleTokenClient({
 
       if (res.ok) {
         const profile = await res.json()
-        // On injecte uniquement l'email dans la réponse finale
         callback({
           ...response,
           email: profile.email,
+          displayName: profile.name,
+          avatarUrl: profile.picture,
         })
       } else {
         const errorBody = await res.json();

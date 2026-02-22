@@ -11,9 +11,13 @@ const SESSION_STORAGE_KEY = 'amm_user_session'
 /**
  * Crée et sauvegarde une nouvelle session après la connexion Google
  * @param accessToken - Token d'accès Google fourni par l'API Google Identity Services
+ * @param userInfo - Infos du profil Google (email, nom, avatar)
  * @returns La session créée
  */
-export function createSession(accessToken: string): UserSession {
+export function createSession(
+  accessToken: string,
+  userInfo?: { email?: string; displayName?: string; avatarUrl?: string },
+): UserSession {
   // Crée un identifiant unique pour la session
   const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`
 
@@ -23,6 +27,9 @@ export function createSession(accessToken: string): UserSession {
     accessToken,
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3600000).toISOString(), // Expire dans 1h
+    email: userInfo?.email,
+    displayName: userInfo?.displayName,
+    avatarUrl: userInfo?.avatarUrl,
   }
 
   // Sauvegarde la session dans le localStorage
@@ -92,6 +99,23 @@ export function updateSessionAccessToken(newAccessToken: string): UserSession | 
   localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updatedSession))
 
   return updatedSession
+}
+
+/**
+ * Renouvelle la session avec un nouveau token et repousse l'expiration d'1h
+ */
+export function renewSession(newAccessToken: string): UserSession | null {
+  const session = getSession()
+  if (!session) return null
+
+  const renewed: UserSession = {
+    ...session,
+    accessToken: newAccessToken,
+    expiresAt: new Date(Date.now() + 3600000).toISOString(),
+  }
+
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(renewed))
+  return renewed
 }
 
 /**

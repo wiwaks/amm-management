@@ -17,6 +17,9 @@ export type UserSession = {
   accessToken: string // Token d'accès Google fourni après connexion
   createdAt: string // Timestamp ISO de création de la session
   expiresAt: string // Timestamp ISO d'expiration de la session
+  email?: string // Email Google de l'utilisateur
+  displayName?: string // Nom complet (ex: "Jeremy Angele")
+  avatarUrl?: string // URL de la photo de profil Google
 }
 
 export type Invitation = {
