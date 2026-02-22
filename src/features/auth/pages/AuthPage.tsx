@@ -139,7 +139,7 @@ function AuthPage() {
           <div className="flex flex-wrap items-center gap-4">
             <Logo subtitle="Agence matrimoniale" />
             <div className="hidden h-6 w-px bg-border/60 sm:block" />
-            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.4em] text-muted-foreground">
+            <div className="flex items-center gap-3 text-xs uppercase text-muted-foreground">
               <Badge variant="outline" className="tracking-normal">
                 Back office
               </Badge>
@@ -154,10 +154,10 @@ function AuthPage() {
         <div className="mt-10 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <section className="space-y-8">
             <div className="space-y-4">
-              <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
+              <p className="text-xs uppercase text-muted-foreground">
                 Importer les réponses
               </p>
-              <h1 className="font-display text-4xl font-semibold leading-tight text-foreground md:text-5xl">
+              <h1 className="text-4xl font-semibold leading-tight text-foreground md:text-5xl">
                 Un portail élégant pour{' '}
                 <span className="text-primary">vos données Google Forms</span>.
               </h1>
@@ -178,9 +178,9 @@ function AuthPage() {
 
             <div className="grid gap-4 sm:grid-cols-3">
               {STEPS.map((step, index) => (
-                <Card key={step.title} className="border-border/60 bg-card/70">
+                <Card key={step.title} className="border">
                   <CardHeader className="pb-3">
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                    <p className="text-xs uppercase text-muted-foreground">
                       étape {index + 1}
                     </p>
                     <CardTitle className="text-base">{step.title}</CardTitle>
@@ -193,7 +193,7 @@ function AuthPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <Card className="border-border/60 bg-card/70">
+              <Card className="border">
                 <CardHeader>
                   <CardTitle className="text-base">
                     Sécurité et conformité
@@ -203,7 +203,7 @@ function AuthPage() {
                   </CardDescription>
                 </CardHeader>
               </Card>
-              <Card className="border-border/60 bg-card/70">
+              <Card className="border">
                 <CardHeader>
                   <CardTitle className="text-base">Auditabilité</CardTitle>
                   <CardDescription>
@@ -214,9 +214,9 @@ function AuthPage() {
             </div>
           </section>
 
-          <Card className="border-border/60 bg-card/80 backdrop-blur">
+          <Card className="border">
             <CardHeader>
-              <CardTitle className="font-display text-2xl">
+              <CardTitle className="text-2xl">
                 Authentification
               </CardTitle>
               <CardDescription>
@@ -224,9 +224,9 @@ function AuthPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm">
+              <div className="rounded-lg border bg-muted/50 p-4 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                  <span className="text-xs uppercase text-muted-foreground">
                     Statut
                   </span>
                   <Badge variant={accessToken ? 'success' : 'outline'}>
@@ -265,13 +265,13 @@ function AuthPage() {
                 Se connecter avec Google
               </Button>
 
-              <div className="rounded-2xl border border-border/60 bg-card/60 p-4 text-xs text-muted-foreground">
+              <div className="rounded-lg border bg-muted/50 p-4 text-xs text-muted-foreground">
                 Scopes: forms.responses.readonly · forms.body.readonly ·
                 profile · email
               </div>
 
               {tokenError ? (
-                <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-700">
+                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
                   {tokenError}
                 </div>
               ) : null}

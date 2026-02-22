@@ -39,7 +39,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      'z-50 min-w-[8rem] overflow-hidden rounded-md border border-border/60 bg-card p-1 text-foreground shadow-md',
+      'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-card p-1 text-foreground shadow-md',
       className,
     )}
     {...props}
@@ -56,7 +56,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[8rem] overflow-hidden rounded-md border border-border/60 bg-card p-1 text-foreground shadow-md',
+        'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-card p-1 text-foreground shadow-md',
         className,
       )}
       {...props}
@@ -99,7 +99,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     checked={checked}
     {...props}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-border/60">
+    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center rounded-sm border">
       {checked ? <span className="h-2 w-2 rounded-sm bg-primary" /> : null}
     </span>
     {children}
@@ -120,7 +120,7 @@ const DropdownMenuRadioItem = React.forwardRef<
     )}
     {...props}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border/60">
+    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center rounded-full border">
       <span className="h-2 w-2 rounded-full bg-primary" />
     </span>
     {children}
