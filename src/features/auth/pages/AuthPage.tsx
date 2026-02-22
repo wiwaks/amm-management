@@ -11,6 +11,7 @@ import {
   CardHeader,
 } from '../../../shared/components/ui/card'
 import { clearSession, createSession, getSession } from '../../../shared/auth/sessionManager'
+import { MeshGradient } from '../../../shared/components/MeshGradient'
 
 function AuthPage() {
   const [tokenError, setTokenError] = useState<string | null>(null)
@@ -89,15 +90,11 @@ function AuthPage() {
   }
 
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_top,_hsl(11_50%_93%),_hsl(0_0%_100%)_70%)] p-4">
-      {/* Animated bokeh circles */}
-      <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <div className="animate-float-1 absolute left-[10%] top-[15%] h-72 w-72 rounded-full bg-terracotta/40 blur-3xl" />
-        <div className="animate-float-2 absolute right-[15%] top-[10%] h-80 w-80 rounded-full bg-terracotta/30 blur-3xl" />
-        <div className="animate-float-3 absolute bottom-[10%] left-[20%] h-72 w-72 rounded-full bg-amber-400/30 blur-3xl" />
-        <div className="animate-float-4 absolute bottom-[20%] right-[10%] h-64 w-64 rounded-full bg-terracotta/25 blur-3xl" />
-        <div className="animate-float-2 absolute left-[50%] top-[50%] h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-rose-300/25 blur-3xl" />
-      </div>
+    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden p-4">
+      <MeshGradient
+        colors={['#C3423F', '#D4785C', '#E8A87C', '#FBDBB2']}
+        className="pointer-events-none"
+      />
 
       <Card className="relative z-10 w-full max-w-sm backdrop-blur-sm">
         <CardHeader className="text-center">
