@@ -130,8 +130,8 @@ function RechercheDashboard() {
     },
     onSuccess: (data) => {
       setToast({
-        title: 'Recherche terminee',
-        description: `${data.length} reponses trouvees.`,
+        title: 'Recherche terminée',
+        description: `${data.length} réponses trouvées.`,
         variant: 'info',
       })
     },
@@ -163,7 +163,7 @@ function RechercheDashboard() {
         throw new Error('Missing VITE_GOOGLE_FORM_ID.')
       }
       if (!accessToken) {
-        throw new Error('Session expiree. Reconnectez-vous.')
+        throw new Error('Session expirée. Reconnectez-vous.')
       }
 
       const googleItems = await fetchGoogleFormQuestionMap(formId, accessToken)
@@ -172,8 +172,8 @@ function RechercheDashboard() {
     onSuccess: (data) => {
       setQuestionMap(data)
       setToast({
-        title: 'Libelles mis a jour',
-        description: `${data.length} questions synchronisees.`,
+        title: 'Libellés mis à jour',
+        description: `${data.length} questions synchronisées.`,
         variant: 'success',
       })
     },
@@ -194,10 +194,10 @@ function RechercheDashboard() {
       if (data.invitation) {
         setGeneratedDeepLink(data.invitation.deepLink)
         setToast({
-          title: data.reused ? 'Invitation existante' : 'Invitation creee',
+          title: data.reused ? 'Invitation existante' : 'Invitation créée',
           description: data.reused
-            ? 'Un lien valide existait deja pour ce client.'
-            : "Le lien d'invitation a ete genere.",
+            ? 'Un lien valide existait déjà pour ce client.'
+            : "Le lien d'invitation a été généré.",
           variant: 'success',
         })
       }
@@ -306,30 +306,49 @@ function RechercheDashboard() {
       },
       {
         accessorKey: 'prenom',
-        header: 'Prenom',
-        meta: { label: 'Prenom' },
+        header: 'Prénom',
+        meta: { label: 'Prénom' },
         cell: ({ row }) => row.original.prenom || '--',
       },
       {
         accessorKey: 'telephone',
-        header: 'Telephone',
-        meta: { label: 'Telephone' },
+        header: 'Téléphone',
+        meta: { label: 'Téléphone' },
         cell: ({ row }) => row.original.telephone || '--',
       },
       {
         id: 'action',
-        header: 'Action',
+        header: '',
         enableGlobalFilter: false,
-        cell: ({ row }) => (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={loadingSubmissionId === row.original.id}
-            onClick={() => void handleOpenSubmission(row.original)}
-          >
-            {loadingSubmissionId === row.original.id ? 'Chargement...' : 'Voir tout'}
-          </Button>
-        ),
+        cell: ({ row }) => {
+          const isLoading = loadingSubmissionId === row.original.id
+          return (
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => void handleOpenSubmission(row.original)}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+            >
+              {isLoading ? (
+                <>
+                  <svg className="size-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>Chargement</span>
+                </>
+              ) : (
+                <>
+                  <span>Consulter</span>
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </>
+              )}
+            </button>
+          )
+        },
       },
     ],
     [handleOpenSubmission, loadingSubmissionId],
@@ -374,14 +393,14 @@ function RechercheDashboard() {
           <CardHeader>
             <CardTitle>Filtres de recherche</CardTitle>
             <CardDescription>
-              Recherchez par nom, email ou telephone. Laissez vide pour tout afficher.
+              Recherchez par nom, email ou téléphone. Laissez vide pour tout afficher.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="min-w-0">
                 <label className="text-xs uppercase text-muted-foreground">
-                  Nom / Prenom
+                  Nom / Prénom
                 </label>
                 <input
                   ref={nameInputRef}
@@ -403,7 +422,7 @@ function RechercheDashboard() {
               </div>
               <div className="min-w-0">
                 <label className="text-xs uppercase text-muted-foreground">
-                  Telephone
+                  Téléphone
                 </label>
                 <input
                   ref={phoneInputRef}
@@ -416,7 +435,7 @@ function RechercheDashboard() {
 
             {missingEnvVars.length > 0 ? (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                Variables d environnement manquantes: {missingEnvVars.join(', ')}
+                Variables d'environnement manquantes: {missingEnvVars.join(', ')}
               </div>
             ) : null}
 
@@ -435,8 +454,8 @@ function RechercheDashboard() {
                 disabled={syncMutation.isPending || missingEnvVars.length > 0}
               >
                 {syncMutation.isPending
-                  ? 'Mise a jour...'
-                  : 'Mettre a jour les libelles'}
+                  ? 'Mise à jour...'
+                  : 'Mettre à jour les libellés'}
               </Button>
             </div>
           </CardContent>
@@ -445,16 +464,16 @@ function RechercheDashboard() {
         <Card className="flex min-h-0 min-w-0 flex-1 flex-col border">
           <CardHeader>
             <CardTitle>
-              Resultats {filteredCount} / {submissions.length}
+              Résultats {filteredCount} / {submissions.length}
             </CardTitle>
             <CardDescription>
-              Cliquez sur "Voir tout" pour charger les reponses completes.
+              Cliquez sur "Consulter" pour charger les réponses complètes.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
             <DataTableToolbar
               table={table}
-              globalPlaceholder="Filtrer les resultats..."
+              globalPlaceholder="Filtrer les résultats..."
               showViewOptions={false}
             />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-muted/20">
@@ -482,13 +501,13 @@ function RechercheDashboard() {
                         <TableCell colSpan={4} className="text-center text-muted-foreground">
                           {searchMutation.isPending
                             ? 'Recherche en cours...'
-                            : 'Aucun resultat. Cliquez sur "Rechercher" pour commencer.'}
+                            : 'Aucun résultat. Cliquez sur "Rechercher" pour commencer.'}
                         </TableCell>
                       </TableRow>
                     ) : table.getRowModel().rows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          Aucun resultat pour ce filtre.
+                          Aucun résultat pour ce filtre.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -507,7 +526,7 @@ function RechercheDashboard() {
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border px-4 py-3 text-sm">
                 <div className="text-muted-foreground">
-                  {filteredCount === 0 ? '0 resultat' : `${pageStart}-${pageEnd} sur ${filteredCount}`}
+                  {filteredCount === 0 ? '0 résultat' : `${pageStart}-${pageEnd} sur ${filteredCount}`}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -516,7 +535,7 @@ function RechercheDashboard() {
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                   >
-                    Precedent
+                    Précédent
                   </Button>
                   <span className="text-xs uppercase text-muted-foreground">
                     Page {pageCount === 0 ? 0 : pagination.pageIndex + 1} / {pageCount}
@@ -557,7 +576,7 @@ function RechercheDashboard() {
                 <div className="z-10 flex items-center justify-between border-b border-border bg-background/95 p-4 backdrop-blur sm:p-6">
                   <div>
                     <h2 className="text-2xl font-semibold">
-                      Reponses completes
+                      Réponses complètes
                     </h2>
                     <p className="text-sm text-muted-foreground">
                       {selectedSubmission.email || selectedSubmission.phone || 'Client'}
@@ -570,7 +589,7 @@ function RechercheDashboard() {
                       onClick={() => inviteMutation.mutate(selectedSubmission.id)}
                       disabled={inviteMutation.isPending}
                     >
-                      {inviteMutation.isPending ? 'Generation...' : 'Inviter'}
+                      {inviteMutation.isPending ? 'Génération...' : 'Inviter'}
                     </Button>
                     <Button
                       type="button"
@@ -611,8 +630,8 @@ function RechercheDashboard() {
                         </div>
                         <div>
                           <p className="text-xs uppercase text-muted-foreground">
-                            Telephone
-                          </p>
+                            Téléphone
+                       </p>
                           <p className="font-medium">
                             {selectedSubmission.phone || '--'}
                           </p>
@@ -623,7 +642,7 @@ function RechercheDashboard() {
                     {generatedDeepLink ? (
                       <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
                         <p className="mb-2 text-xs font-medium uppercase tracking-wider text-primary">
-                          Lien d invitation (deep link)
+                          Lien d'invitation (deep link)
                         </p>
                         <div className="flex items-center gap-2">
                           <code className="flex-1 rounded-lg bg-background px-3 py-2 text-sm font-mono break-all">
@@ -636,9 +655,9 @@ function RechercheDashboard() {
                             onClick={() => {
                               navigator.clipboard.writeText(generatedDeepLink)
                               setToast({
-                                title: 'Copie',
+                                title: 'Copié',
                                 description:
-                                  'Le lien a ete copie dans le presse-papier.',
+                                  'Le lien a été copié dans le presse-papier.',
                                 variant: 'info',
                               })
                             }}
@@ -677,8 +696,8 @@ function RechercheDashboard() {
                         return (
                           <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
                             {questionMap.length === 0
-                              ? 'Aucun libelle charge. Cliquez sur "Mettre a jour les libelles" pour synchroniser.'
-                              : `Aucune reponse trouvee (${selectedSubmission.answers.length} reponse(s) brute(s), ${questionMap.length} libelle(s)).`}
+                              ? 'Aucun libellé chargé. Cliquez sur "Mettre à jour les libellés" pour synchroniser.'
+                              : `Aucune réponse trouvée (${selectedSubmission.answers.length} réponse(s) brute(s), ${questionMap.length} libellé(s)).`}
                           </div>
                         )
                       }

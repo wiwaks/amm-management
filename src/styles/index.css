@@ -10,8 +10,8 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 11 50% 63%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96.1%;
@@ -22,7 +22,9 @@
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --ring: 11 50% 63%;
+    --terracotta: 11 50% 63%;
+    --terracotta-foreground: 0 0% 100%;
     --radius: 0.625rem;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -31,10 +33,10 @@
     --chart-5: 27 87% 67%;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-primary: 11 50% 63%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 11 50% 96%;
+    --sidebar-accent-foreground: 11 40% 35%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
@@ -88,3 +90,37 @@
     min-height: 100dvh;
   }
 }
+
+/* Floating bokeh animations for auth page */
+@keyframes float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(80px, -60px) scale(1.15); }
+  50% { transform: translate(-40px, 50px) scale(0.9); }
+  75% { transform: translate(60px, 30px) scale(1.1); }
+}
+
+@keyframes float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-70px, 60px) scale(1.12); }
+  50% { transform: translate(50px, -40px) scale(0.88); }
+  75% { transform: translate(-30px, -50px) scale(1.08); }
+}
+
+@keyframes float-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(60px, 70px) scale(0.9); }
+  50% { transform: translate(-80px, -30px) scale(1.15); }
+  75% { transform: translate(40px, -60px) scale(0.95); }
+}
+
+@keyframes float-4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-60px, -70px) scale(1.2); }
+  50% { transform: translate(70px, 40px) scale(0.85); }
+  75% { transform: translate(-50px, 60px) scale(1.1); }
+}
+
+.animate-float-1 { animation: float-1 10s ease-in-out infinite; }
+.animate-float-2 { animation: float-2 12s ease-in-out infinite; }
+.animate-float-3 { animation: float-3 11s ease-in-out infinite; }
+.animate-float-4 { animation: float-4 9s ease-in-out infinite; }
