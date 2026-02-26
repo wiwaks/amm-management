@@ -212,7 +212,17 @@ function ImportDashboard() {
 
   const previewData = previewMutation.data as GoogleFormsPreview | undefined
   const responses = useMemo(() => previewData?.responses ?? [], [previewData])
-  const previewRows = useMemo(() => responses.slice(0, 4), [responses])
+  const previewRows = useMemo(
+    () =>
+      [...responses]
+        .sort((a, b) => {
+          const dateA = new Date(a.lastSubmittedTime || a.createTime || 0).getTime()
+          const dateB = new Date(b.lastSubmittedTime || b.createTime || 0).getTime()
+          return dateB - dateA
+        })
+        .slice(0, 4),
+    [responses],
+  )
   const totalResponses = previewData?.totalResponses ?? responses.length
   const importStats = importMutation.data
 
