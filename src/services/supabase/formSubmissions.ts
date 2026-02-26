@@ -40,3 +40,16 @@ export async function fetchFormSubmissions(params: SearchParams = {}) {
 
   return (data ?? []) as FormSubmission[]
 }
+
+export async function fetchFormSubmissionById(
+  id: string,
+): Promise<FormSubmission | null> {
+  const { data, error } = await supabase
+    .from('form_submissions')
+    .select('id, source, source_row_id, submitted_at, email, phone, raw_json, created_at')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  return data as FormSubmission | null
+}

@@ -70,7 +70,7 @@ function UserAvatar({ session }: { session: UserSession }) {
 
 function isActiveRoute(pathname: string, item: NavItem) {
   if (!item.route) return false
-  return pathname === item.route
+  return pathname === item.route || pathname.startsWith(item.route + '/')
 }
 
 function AppSidebar({ session, onLogout }: AppSidebarProps) {

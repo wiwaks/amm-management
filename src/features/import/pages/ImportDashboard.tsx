@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '../../../shared/components/ui/table'
 import { Toast } from '../../../shared/components/ui/toast'
+import { normalizeAllSubmissions } from '../../../services/supabase/formSubmissionAnswers'
 
 type GoogleFormsResponse = {
   responseId?: string
@@ -171,16 +172,28 @@ function ImportDashboard() {
 
       return (await response.json()) as ImportResult
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const { total, imported, updated, skipped } = data
       const totalLabel = total ?? imported ?? 0
-      setToast({
-        title: 'Import terminé',
-        description: `Importés ${imported ?? 0} / ${totalLabel} | Modifiés ${
-          updated ?? 0
-        } | Ignorés ${skipped ?? 0}`,
-        variant: 'success',
-      })
+
+      try {
+        const normResult = await normalizeAllSubmissions()
+        setToast({
+          title: 'Import terminé',
+          description: `Importés ${imported ?? 0} / ${totalLabel} | Modifiés ${
+            updated ?? 0
+          } | Ignorés ${skipped ?? 0} | Normalisés ${normResult.normalized} (${normResult.answersCreated} réponses)`,
+          variant: 'success',
+        })
+      } catch {
+        setToast({
+          title: 'Import terminé (normalisation échouée)',
+          description: `Importés ${imported ?? 0} / ${totalLabel} | Modifiés ${
+            updated ?? 0
+          } | Ignorés ${skipped ?? 0}`,
+          variant: 'success',
+        })
+      }
     },
     onError: (error) => {
       setToast({

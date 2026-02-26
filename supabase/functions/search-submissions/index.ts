@@ -14,6 +14,7 @@ interface RequestBody {
   age?: string;
   gender?: string;
   children?: string;
+  freetext?: string;
   limit?: number;
   offset?: number;
 }
@@ -70,8 +71,14 @@ Deno.serve(async (req: Request) => {
     const age = normalizeTerm(body.age);
     const gender = normalizeTerm(body.gender);
     const children = normalizeTerm(body.children);
+    const freetextRaw = normalizeTerm(body.freetext);
+    const freetextKeywords: string[] | null = freetextRaw
+      ? freetextRaw.split(/\s+/).filter((w) => w.length >= 2)
+      : null;
     const limit = clampNumber(body.limit, 1, 500, 200);
     const offset = clampNumber(body.offset, 0, 10_000, 0);
+
+    await sql`CREATE EXTENSION IF NOT EXISTS unaccent`;
 
     const rows = await sql<SearchSubmissionRow[]>`
       WITH question_ids AS (
@@ -149,6 +156,14 @@ Deno.serve(async (req: Request) => {
         CROSS JOIN question_ids q
         GROUP BY fsa.submission_id
       ),
+      all_text AS (
+        SELECT
+          fsa2.submission_id,
+          lower(unaccent(string_agg(coalesce(fsa2.value_text, ''), ' '))) AS full_text
+        FROM public.form_submission_answers fsa2
+        WHERE coalesce(fsa2.value_text, '') <> ''
+        GROUP BY fsa2.submission_id
+      ),
       search_base AS (
         SELECT
           fs.id,
@@ -161,9 +176,11 @@ Deno.serve(async (req: Request) => {
           coalesce(nullif(fs.phone, ''), aa.telephone, '') AS telephone,
           coalesce(aa.age, '') AS age,
           coalesce(aa.genre, '') AS genre,
-          coalesce(aa.enfants, '') AS enfants
+          coalesce(aa.enfants, '') AS enfants,
+          coalesce(at.full_text, '') AS full_text
         FROM public.form_submissions fs
         LEFT JOIN aggregated_answers aa ON aa.submission_id = fs.id
+        LEFT JOIN all_text at ON at.submission_id = fs.id
       )
       SELECT
         s.id,
@@ -188,10 +205,10 @@ Deno.serve(async (req: Request) => {
       )
       AND (
         ${name}::text IS NULL
-        OR s.nom ILIKE '%' || ${name} || '%'
-        OR s.prenom ILIKE '%' || ${name} || '%'
-        OR concat_ws(' ', s.prenom, s.nom) ILIKE '%' || ${name} || '%'
-        OR concat_ws(' ', s.nom, s.prenom) ILIKE '%' || ${name} || '%'
+        OR unaccent(s.nom) ILIKE '%' || unaccent(${name}) || '%'
+        OR unaccent(s.prenom) ILIKE '%' || unaccent(${name}) || '%'
+        OR unaccent(concat_ws(' ', s.prenom, s.nom)) ILIKE '%' || unaccent(${name}) || '%'
+        OR unaccent(concat_ws(' ', s.nom, s.prenom)) ILIKE '%' || unaccent(${name}) || '%'
       )
       AND (
         ${age}::text IS NULL
@@ -199,13 +216,20 @@ Deno.serve(async (req: Request) => {
       )
       AND (
         ${gender}::text IS NULL
-        OR s.genre ILIKE '%' || ${gender} || '%'
+        OR unaccent(s.genre) ILIKE '%' || unaccent(${gender}) || '%'
       )
       AND (
         ${children}::text IS NULL
-        OR s.enfants ILIKE '%' || ${children} || '%'
+        OR unaccent(s.enfants) ILIKE '%' || unaccent(${children}) || '%'
       )
-      ORDER BY coalesce(s.submitted_at, s.created_at) DESC
+      AND (
+        ${freetextKeywords}::text[] IS NULL
+        OR (
+          SELECT bool_and(s.full_text LIKE '%' || lower(unaccent(kw.word)) || '%')
+          FROM unnest(${freetextKeywords}::text[]) AS kw(word)
+        )
+      )
+      ORDER BY s.nom ASC, s.prenom ASC
       LIMIT ${limit}
       OFFSET ${offset}
     `;

@@ -1,45 +1,32 @@
 export async function fetchFormResponses(formId: string, accessToken: string) {
-  const url = `https://forms.googleapis.com/v1/forms/${encodeURIComponent(
-    formId,
-  )}/responses?pageSize=200`
+  const baseUrl = `https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}/responses`
+  const headers = { Authorization: `Bearer ${accessToken}` }
+  const allResponses: unknown[] = []
+  let pageToken: string | undefined
 
-  console.log('=== Google Forms API Request ===')
-  console.log('Form ID:', formId)
-  console.log('Access token present:', !!accessToken)
-  console.log('Access token value:', accessToken)
-  console.log('Access token length:', accessToken?.length)
-  console.log('Request URL:', url)
+  do {
+    const url = pageToken
+      ? `${baseUrl}?pageSize=200&pageToken=${encodeURIComponent(pageToken)}`
+      : `${baseUrl}?pageSize=200`
 
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-  }
-  console.log('Request headers:', headers)
-  console.log('===============================')
+    const response = await fetch(url, { headers })
 
-  const response = await fetch(url, {
-    headers,
-  })
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(
+        `Google Forms API error: ${response.status} ${response.statusText}${
+          text ? ` - ${text}` : ''
+        }`,
+      )
+    }
 
-  console.log('=== Google Forms API Response ===')
-  console.log('Response status:', response.status)
-  console.log('Response ok:', response.ok)
-  console.log('Response statusText:', response.statusText)
+    const data = await response.json()
+    const responses = data.responses ?? []
+    allResponses.push(...responses)
+    pageToken = data.nextPageToken
+  } while (pageToken)
 
-  if (!response.ok) {
-    const text = await response.text()
-    console.error('Error response body:', text)
-    throw new Error(
-      `Google Forms API error: ${response.status} ${response.statusText}${
-        text ? ` - ${text}` : ''
-      }`,
-    )
-  }
-
-  const data = await response.json()
-  console.log('Response data:', JSON.stringify(data, null, 2))
-  console.log('================================')
-
-  return data
+  return { responses: allResponses, totalResponses: allResponses.length }
 }
 
 type FormQuestionMapItem = {

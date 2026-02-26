@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lover CV</title>
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@300;400;600;700;800&family=Dancing+Script:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: 1260px 920px landscape; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #e8e0d4;
+    font-family: 'Nunito', sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @media print {
+    body { background: none; padding: 0; }
+    .page { box-shadow: none !important; }
+  }
+
+  .page {
+    width: 1260px;
+    height: 920px;
+    background: #faf5ed;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  }
+
+  /* Watermark */
+  .watermark {
+    position: absolute;
+    top: -10px; left: 40px;
+    font-size: 380px;
+    opacity: 0.04;
+    color: #8B6842;
+    pointer-events: none;
+    z-index: 0;
+    line-height: 1;
+  }
+
+  /* Corner brackets */
+  .corner { position: absolute; opacity: 0.08; z-index: 1; }
+  .corner.tl { top: 8px; left: 8px; width: 40px; height: 40px; border-top: 2px solid #8B6842; border-left: 2px solid #8B6842; }
+  .corner.tr { top: 8px; right: 8px; width: 40px; height: 40px; border-top: 2px solid #8B6842; border-right: 2px solid #8B6842; }
+  .corner.bl { bottom: 8px; left: 8px; width: 40px; height: 40px; border-bottom: 2px solid #8B6842; border-left: 2px solid #8B6842; }
+  .corner.br { bottom: 8px; right: 8px; width: 40px; height: 40px; border-bottom: 2px solid #8B6842; border-right: 2px solid #8B6842; }
+
+  /* ===== FLEXBOX LAYOUT ===== */
+  .grid-layout {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px 22px 28px;
+    gap: 10px;
+  }
+
+  .row {
+    display: flex;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .row-top { height: 210px; }
+  .row-mid1 { height: 145px; }
+  .row-mid2 { height: 195px; }
+  .row-bottom { flex: 1; min-height: 0; }
+
+  /* Shared title */
+  .stitle {
+    font-family: 'Luckiest Guy', cursive;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    line-height: 1.15;
+  }
+
+  /* ===== NAME BLOCK ===== */
+  .name-block { width: 330px; flex-shrink: 0; overflow: hidden; }
+  .name-block h1 {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.2rem;
+    color: #2D5A3D;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .info-lines { font-size: 0.68rem; line-height: 1.6; color: #3A3530; }
+  .info-lines strong { color: #2D5A3D; font-weight: 700; }
+
+  /* ===== PHOTO ===== */
+  .photo-circle {
+    width: 190px; height: 190px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 5px solid #8B6842;
+    background: linear-gradient(135deg, #c4d4bc, #a68460);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    align-self: center;
+  }
+  .photo-circle span {
+    color: #fff; font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    opacity: 0.7; text-align: center;
+  }
+
+  /* ===== À PROPOS ===== */
+  .apropos { flex: 1; min-width: 0; overflow: hidden; }
+  .apropos .stitle { font-size: 1.7rem; color: #2D5A3D; margin-bottom: 5px; }
+  .apropos p {
+    font-size: 0.66rem; line-height: 1.65;
+    color: #3A3530; text-align: justify;
+  }
+
+  /* ===== RECHERCHE ===== */
+  .recherche { width: 345px; flex-shrink: 0; overflow: hidden; }
+  .recherche .stitle { font-size: 1.1rem; color: #2D5A3D; margin-bottom: 5px; }
+  .recherche p {
+    font-size: 0.62rem; line-height: 1.65;
+    color: #3A3530; text-align: justify;
+  }
+  .recherche strong { color: #2D5A3D; }
+
+  /* ===== QUOTE ===== */
+  .quote-block {
+    width: 265px; flex-shrink: 0; overflow: hidden;
+    display: flex; align-items: center;
+  }
+  .quote-block p {
+    font-size: 0.72rem; line-height: 1.7;
+    color: #3A3530; text-align: justify;
+    font-style: italic;
+  }
+  .quote-block p::before {
+    content: '\201C'; font-size: 2rem;
+    color: #8B6842;
+    font-family: 'Dancing Script', cursive;
+    line-height: 0; vertical-align: -0.3em;
+    margin-right: 2px;
+  }
+  .quote-block p::after {
+    content: '\201D'; font-size: 1.2rem; color: #8B6842;
+  }
+
+  /* ===== QUALITÉS & DÉFAUTS ===== */
+  .qual-def {
+    flex: 1; min-width: 0; overflow: hidden;
+    display: flex; gap: 28px;
+  }
+  .qual-col, .def-col { flex: 1; min-width: 0; }
+  .qual-col .stitle { font-size: 1rem; color: #2D5A3D; margin-bottom: 8px; }
+  .def-col .stitle { font-size: 1rem; color: #8B6842; margin-bottom: 8px; }
+  .bar-item { margin-bottom: 7px; }
+  .bar-label { font-size: 0.61rem; font-weight: 600; color: #3A3530; margin-bottom: 2px; }
+  .bar-track { height: 8px; background: #e8e0d4; border-radius: 4px; overflow: hidden; }
+  .bar-green { height: 100%; background: linear-gradient(90deg, #2D5A3D, #3E7A54); border-radius: 4px; }
+  .bar-brown { height: 100%; background: linear-gradient(90deg, #8B6842, #A68460); border-radius: 4px; }
+
+  /* ===== VALEURS ===== */
+  .valeurs {
+    width: 345px; flex-shrink: 0; overflow: hidden;
+    border: 2.5px solid #8B6842;
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: rgba(250,245,237,0.9);
+  }
+  .valeurs .stitle { font-size: 1rem; color: #8B6842; margin-bottom: 5px; }
+  .valeurs p {
+    font-size: 0.59rem; line-height: 1.65;
+    color: #3A3530; text-align: justify;
+  }
+  .valeurs strong { color: #2D5A3D; }
+
+  /* ===== ACTIVITÉS ===== */
+  .activites { width: 275px; flex-shrink: 0; overflow: hidden; text-align: center; }
+  .activites .stitle {
+    font-family: 'Dancing Script', cursive;
+    font-size: 1.4rem; color: #8B6842;
+    margin-bottom: 8px; text-transform: none;
+  }
+  .activites-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px; justify-items: center;
+  }
+  .act-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .act-img {
+    width: 50px; height: 50px;
+    border-radius: 10px;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border: 1.5px solid rgba(139,104,66,0.12);
+  }
+  .act-label {
+    font-size: 0.45rem; color: #5a5248;
+    font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ===== SAMEDI SOIR ===== */
+  .samedi {
+    flex: 1; min-width: 0; overflow: hidden;
+    background: linear-gradient(135deg, #2D5A3D, #1B3D2A);
+    border-radius: 12px;
+    padding: 14px 18px;
+  }
+  .samedi .stitle { font-size: 1.1rem; color: #D4A84B; margin-bottom: 6px; text-align: center; }
+  .samedi p {
+    font-size: 0.59rem; line-height: 1.7;
+    color: #ede6da; text-align: justify;
+  }
+  .samedi strong { color: #D4A84B; }
+
+  /* ===== BOTTOM LEFT ===== */
+  .col-left {
+    width: 345px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 8px;
+    overflow: hidden;
+  }
+  .lifestyle p { font-size: 0.58rem; line-height: 1.65; color: #3A3530; text-align: justify; }
+  .lifestyle strong { color: #2D5A3D; }
+
+  .phobies-row, .food-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .phobie-label { font-size: 0.53rem; font-weight: 700; color: #8B6842; text-transform: uppercase; letter-spacing: 0.06em; }
+  .phobie-item {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #f0e8dc; border: 1.5px solid #d4c4a8;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+  .phobie-x { position: relative; }
+  .phobie-x::after {
+    content: '\2716';
+    position: absolute; bottom: -2px; right: -3px;
+    font-size: 0.5rem; color: #c0392b; font-weight: 900;
+    background: #faf5ed; border-radius: 50%;
+    width: 12px; height: 12px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #c0392b;
+  }
+
+  .food-label { font-size: 0.53rem; font-weight: 700; color: #2D5A3D; text-transform: uppercase; letter-spacing: 0.06em; }
+  .food-item {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #e8f0e4; border: 1.5px solid #b8ccb0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+  .food-check { position: relative; }
+  .food-check::after {
+    content: '\2665';
+    position: absolute; bottom: -2px; right: -3px;
+    font-size: 0.45rem; color: #2D5A3D;
+    background: #faf5ed; border-radius: 50%;
+    width: 12px; height: 12px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #2D5A3D;
+  }
+
+  /* ===== BOTTOM CENTER ===== */
+  .col-center {
+    width: 275px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 10px;
+    overflow: hidden;
+  }
+
+  /* Fun Facts */
+  .funfacts .stitle { font-size: 0.82rem; color: #8B6842; margin-bottom: 6px; }
+  .ff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .ff-card {
+    background: rgba(139,104,66,0.06);
+    border: 1px solid rgba(139,104,66,0.12);
+    border-radius: 8px;
+    padding: 6px 8px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .ff-emoji { font-size: 1.2rem; flex-shrink: 0; }
+  .ff-text { font-size: 0.5rem; color: #3A3530; line-height: 1.4; }
+  .ff-text strong { color: #2D5A3D; }
+
+  /* Love Language */
+  .love-lang { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+  .love-heart { font-size: 2rem; flex-shrink: 0; }
+  .love-title {
+    font-size: 0.55rem; color: #8B6842;
+    font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 2px;
+  }
+  .love-content p { font-size: 0.52rem; line-height: 1.55; color: #3A3530; }
+
+  /* ===== TAGS ===== */
+  .tags-area {
+    flex: 1; min-width: 0;
+    display: flex; flex-wrap: wrap; gap: 6px;
+    align-content: flex-end;
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+  .tag {
+    padding: 4px 10px; border-radius: 20px;
+    font-size: 0.5rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: #fff;
+    transform: rotate(var(--r, 0deg));
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  .t-green { background: #2D5A3D; }
+  .t-brown { background: #8B6842; }
+  .t-gold { background: #D4A84B; color: #2C2820; }
+  .t-greenl { background: #3E7A54; }
+  .t-brownl { background: #A68460; }
+
+  /* Footer */
+  .footer-brand {
+    position: absolute;
+    bottom: 6px; left: 24px;
+    font-size: 0.42rem; color: #A68460;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.5; z-index: 2;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="watermark">&#9825;</div>
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <div class="grid-layout">
+
+    <!-- Row 1: Name + Photo + À propos -->
+    <div class="row row-top">
+      <div class="name-block">
+        <h1>{{Prénom}} {{Âge}} ans</h1>
+        <div class="info-lines">
+          <strong>Enfant(s)</strong> : {{Avez-vous des enfants ?}}<br>
+          <strong>Métier</strong> : {{Quel est votre métier / occupation ?}}<br>
+          <strong>Religion</strong> : {{Quelle est votre religion ?}}<br>
+          <strong>Situation financière</strong> : {{Situation financière}}<br>
+          <strong>Taille</strong> : {{Quelle est votre taille ?}}<br>
+          <strong>Signe astro</strong> : {{Quel est votre signe astrologique ?}}<br>
+          <strong>Fumeur(se)</strong> : {{Êtes-vous fumeur(se) ?}}<br>
+          <strong>Localisation</strong> : {{Dans quelle commune habitez-vous ?}}<br>
+          <strong>Bonus</strong> : {{Un fait marquant ou une anecdote sur vous ?}}
+        </div>
+      </div>
+      <div class="photo-circle">
+        <span>Photo<br>du candidat</span>
+      </div>
+      <div class="apropos">
+        <div class="stitle">À propos</div>
+        <p>{{Décrivez-vous en quelques lignes}}</p>
+      </div>
+    </div>
+
+    <!-- Row 2: Recherche + Quote + Qualités & Défauts -->
+    <div class="row row-mid1">
+      <div class="recherche">
+        <div class="stitle">Ce qu'il/elle recherche</div>
+        <p>{{Décrivez votre partenaire idéal(e)}}</p>
+      </div>
+      <div class="quote-block">
+        <p>{{Quelle est votre citation ou devise préférée ?}}</p>
+      </div>
+      <div class="qual-def">
+        <div class="qual-col">
+          <div class="stitle">Ses qualités</div>
+          <!-- Générer autant de bar-item que de qualités déclarées par le candidat -->
+          {{QUALITES_BARS}}
+        </div>
+        <div class="def-col">
+          <div class="stitle">Ses défauts</div>
+          <!-- Générer autant de bar-item que de défauts déclarés par le candidat -->
+          {{DEFAUTS_BARS}}
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Valeurs + Activités + Samedi soir -->
+    <div class="row row-mid2">
+      <div class="valeurs">
+        <div class="stitle">Valeurs sentimentales</div>
+        <p>{{Quelles sont vos valeurs les plus importantes dans une relation ?}}</p>
+      </div>
+      <div class="activites">
+        <div class="stitle">Activités / Loisirs</div>
+        <!-- Générer autant d'act-item que d'activités/loisirs du candidat (4 à 8 pour la grille 4 colonnes) -->
+        <div class="activites-grid">
+          {{ACTIVITES_GRID}}
+        </div>
+      </div>
+      <div class="samedi">
+        <div class="stitle">Son samedi soir de rêve 🌙</div>
+        <p>{{Décrivez votre samedi soir idéal}}</p>
+      </div>
+    </div>
+
+    <!-- Row 4: Bottom sections -->
+    <div class="row row-bottom">
+      <div class="col-left">
+        <div class="lifestyle">
+          <p>{{Êtes-vous plutôt introverti(e) ou extraverti(e) ?}}</p>
+        </div>
+        <!-- Générer un cercle phobie-item phobie-x par phobie mentionnée -->
+        <div class="phobies-row">
+          <span class="phobie-label">Phobies :</span>
+          {{PHOBIES_PICTOS}}
+        </div>
+        <!-- Générer un cercle food-item food-check par plat/aliment adoré -->
+        <div class="food-row">
+          <span class="food-label">Adore :</span>
+          {{FOOD_PICTOS}}
+        </div>
+      </div>
+      <div class="col-center">
+        <div class="funfacts">
+          <div class="stitle">Fun facts</div>
+          <div class="ff-grid">
+            <div class="ff-card">
+              <span class="ff-emoji">🍫</span>
+              <div class="ff-text"><strong>Péché mignon</strong><br>{{Quel est votre péché mignon ?}}</div>
+            </div>
+            <div class="ff-card">
+              <span class="ff-emoji">📍</span>
+              <div class="ff-text"><strong>Spot favori</strong><br>{{Quel est votre endroit préféré ?}}</div>
+            </div>
+            <div class="ff-card">
+              <span class="ff-emoji">🍽️</span>
+              <div class="ff-text"><strong>Gourmandise</strong><br>{{Quel est votre plat préféré ?}}</div>
+            </div>
+            <div class="ff-card">
+              <span class="ff-emoji">🚫</span>
+              <div class="ff-text"><strong>Interdit</strong><br>{{Un aliment que vous détestez ?}}</div>
+            </div>
+            <div class="ff-card">
+              <span class="ff-emoji">🐾</span>
+              <div class="ff-text"><strong>Animaux</strong><br>{{Aimez-vous les animaux ?}}</div>
+            </div>
+            <div class="ff-card">
+              <span class="ff-emoji">🌡️</span>
+              <div class="ff-text"><strong>Climat</strong><br>{{Préférez-vous le chaud ou le froid ?}}</div>
+            </div>
+          </div>
+        </div>
+        <div class="love-lang">
+          <span class="love-heart">💕</span>
+          <div class="love-content">
+            <div class="love-title">Son langage de l'amour</div>
+            <p>{{Quel est votre langage de l'amour ?}}</p>
+          </div>
+        </div>
+      </div>
+      <!-- Générer 8 à 12 tags courts (1-3 mots) pour remplir 2 lignes homogènes : qualités, signe astro, personnalité, secteur, centres d'intérêt... -->
+      <div class="tags-area">
+        {{TAGS}}
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer-brand">Agence Matrimoniale Martinique &mdash; Lover CV</div>
+</div>
+
+<script>
+(function() {
+  function fit() {
+    var page = document.querySelector('.page');
+    if (!page) return;
+    var wR = window.innerWidth / 1260;
+    var hR = window.innerHeight / 920;
+    var s = Math.min(wR, hR, 1);
+    page.style.transform = 'scale(' + s + ')';
+    page.style.transformOrigin = 'top center';
+  }
+  fit();
+  window.addEventListener('resize', fit);
+})();
+</script>
+</body>
+</html>
