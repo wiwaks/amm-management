@@ -38,6 +38,38 @@ function normalizeTerm(value?: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+// French stop words — common words that carry no search value
+const STOP_WORDS = new Set([
+  // articles
+  "le", "la", "les", "un", "une", "des", "du", "de", "d", "l",
+  // pronouns
+  "je", "tu", "il", "elle", "on", "nous", "vous", "ils", "elles",
+  "me", "te", "se", "ce", "ça", "cela", "ceci",
+  "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses",
+  "notre", "votre", "leur", "leurs", "nos", "vos",
+  // prepositions & conjunctions
+  "à", "au", "aux", "en", "et", "ou", "mais", "donc", "car", "ni",
+  "dans", "par", "pour", "sur", "sous", "avec", "chez", "entre",
+  // verbs (common auxiliary/utility)
+  "est", "suis", "es", "sont", "être", "etre", "avoir", "ai", "as", "ont",
+  "fait", "faire", "peut", "veut", "doit",
+  // adverbs & misc
+  "ne", "pas", "plus", "très", "tres", "bien", "aussi", "tout", "tous",
+  "qui", "que", "quoi", "dont", "où",
+  // search-specific noise
+  "je", "recherche", "cherche", "voudrais", "veux", "souhaite",
+  "personne", "profil", "quelqu",
+]);
+
+function extractKeywords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/['']/g, " ")          // l'homme → l homme
+    .replace(/[,;.!?:()]/g, " ")    // punctuation → spaces
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
+}
+
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
@@ -73,7 +105,7 @@ Deno.serve(async (req: Request) => {
     const children = normalizeTerm(body.children);
     const freetextRaw = normalizeTerm(body.freetext);
     const freetextKeywords: string[] | null = freetextRaw
-      ? freetextRaw.split(/\s+/).filter((w) => w.length >= 2)
+      ? extractKeywords(freetextRaw)
       : null;
     const limit = clampNumber(body.limit, 1, 500, 200);
     const offset = clampNumber(body.offset, 0, 10_000, 0);
