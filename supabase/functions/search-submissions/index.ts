@@ -38,7 +38,17 @@ function normalizeTerm(value?: string): string | null {
   return trimmed ? trimmed : null;
 }
 
-// French stop words — common words that carry no search value
+// ── Natural language query parser ──────────────────────────────────────────
+
+interface ParsedQuery {
+  gender: string | null;
+  ageMin: number | null;
+  ageMax: number | null;
+  noChildren: boolean;
+  keywords: string[];
+}
+
+/** Words to strip from remaining keywords after structured extraction */
 const STOP_WORDS = new Set([
   // articles
   "le", "la", "les", "un", "une", "des", "du", "de", "d", "l",
@@ -53,21 +63,105 @@ const STOP_WORDS = new Set([
   // verbs (common auxiliary/utility)
   "est", "suis", "es", "sont", "être", "etre", "avoir", "ai", "as", "ont",
   "fait", "faire", "peut", "veut", "doit",
+  "prend", "prendre", "prenne", "soit", "serait",
+  "aime", "aimer", "aimant", "adore", "adorer",
   // adverbs & misc
   "ne", "pas", "plus", "très", "tres", "bien", "aussi", "tout", "tous",
   "qui", "que", "quoi", "dont", "où",
+  "encore", "déjà", "deja", "jamais", "toujours", "assez", "trop",
+  "comme", "comment", "quand",
+  // time & measure noise
+  "ans", "an", "année", "annee", "années", "annees", "mois",
   // search-specific noise
-  "je", "recherche", "cherche", "voudrais", "veux", "souhaite",
-  "personne", "profil", "quelqu",
+  "recherche", "cherche", "voudrais", "veux", "souhaite",
+  "personne", "profil", "quelqu", "quelque", "quelques",
+  "soin", "soins", "idéal", "ideal", "idéale", "ideale",
 ]);
 
-function extractKeywords(text: string): string[] {
-  return text
+/** Words already handled by structured extraction (removed from keywords) */
+const PARSED_NOISE = new Set([
+  "femme", "homme", "fille", "garçon", "garcon", "madame", "monsieur",
+  "enfant", "enfants", "sans", "avec",
+]);
+
+function parseFreetextQuery(text: string): ParsedQuery {
+  const lower = text
     .toLowerCase()
-    .replace(/['']/g, " ")          // l'homme → l homme
-    .replace(/[,;.!?:()]/g, " ")    // punctuation → spaces
+    .replace(/['']/g, "'")
+    .replace(/[,;.!?:()]/g, " ")
+    .trim();
+
+  // ── Gender ──
+  let gender: string | null = null;
+  if (/\bfemme\b|\bfille\b|\bmadame\b/.test(lower)) gender = "femme";
+  else if (/\bhomme\b|\bgarçon\b|\bgarcon\b|\bmonsieur\b/.test(lower)) gender = "homme";
+
+  // ── Age ──
+  let ageMin: number | null = null;
+  let ageMax: number | null = null;
+
+  const rangeMatch =
+    lower.match(/entre\s+(\d+)\s+et\s+(\d+)/) ||
+    lower.match(/de\s+(\d+)\s+[àa]\s+(\d+)/) ||
+    lower.match(/(\d+)\s*[-–]\s*(\d+)\s*ans/);
+  if (rangeMatch) {
+    ageMin = parseInt(rangeMatch[1]);
+    ageMax = parseInt(rangeMatch[2]);
+  } else {
+    const lessMatch = lower.match(/moins\s+de\s+(\d+)\s*ans/);
+    const moreMatch = lower.match(/plus\s+de\s+(\d+)\s*ans/);
+    const exactMatch = lower.match(/de\s+(\d+)\s+ans/) || lower.match(/(\d+)\s+ans/);
+    if (lessMatch) {
+      ageMin = 18;
+      ageMax = parseInt(lessMatch[1]);
+    } else if (moreMatch) {
+      ageMin = parseInt(moreMatch[1]);
+      ageMax = 120;
+    } else if (exactMatch) {
+      const age = parseInt(exactMatch[1]);
+      // ±2 tolerance for single age
+      ageMin = age - 2;
+      ageMax = age + 2;
+    }
+  }
+
+  // ── Children ──
+  const noChildren =
+    /sans\s+enfant/.test(lower) ||
+    /pas\s+(d'|d\s+|de\s+)enfant/.test(lower) ||
+    /pas\s+encore\s+(d'|d\s+|de\s+)enfant/.test(lower) ||
+    /n'a\s+pas\s+(d'|d\s+|de\s+)enfant/.test(lower) ||
+    /aucun\s+enfant/.test(lower);
+
+  // ── Remaining keywords for full-text ──
+  let remaining = lower;
+  // Remove age patterns
+  remaining = remaining.replace(/entre\s+\d+\s+et\s+\d+\s*(ans)?/g, " ");
+  remaining = remaining.replace(/de\s+\d+\s+[àa]\s+\d+\s*(ans)?/g, " ");
+  remaining = remaining.replace(/\d+\s*[-–]\s*\d+\s*ans/g, " ");
+  remaining = remaining.replace(/moins\s+de\s+\d+\s*ans/g, " ");
+  remaining = remaining.replace(/plus\s+de\s+\d+\s*ans/g, " ");
+  remaining = remaining.replace(/de\s+\d+\s+ans/g, " ");
+  remaining = remaining.replace(/\d+\s+ans/g, " ");
+  // Remove children patterns
+  remaining = remaining.replace(/sans\s+enfants?/g, " ");
+  remaining = remaining.replace(/pas\s+(d'|d\s+|de\s+)enfants?/g, " ");
+  remaining = remaining.replace(/pas\s+encore\s+(d'|d\s+|de\s+)enfants?/g, " ");
+  remaining = remaining.replace(/n'a\s+pas\s+(d'|d\s+|de\s+)enfants?/g, " ");
+  remaining = remaining.replace(/aucun\s+enfants?/g, " ");
+
+  const keywords = remaining
+    .replace(/['']/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
+    .filter(
+      (w) =>
+        w.length >= 2 &&
+        !STOP_WORDS.has(w) &&
+        !PARSED_NOISE.has(w) &&
+        !/^\d+$/.test(w),
+    );
+
+  return { gender, ageMin, ageMax, noChildren, keywords };
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
@@ -104,9 +198,13 @@ Deno.serve(async (req: Request) => {
     const gender = normalizeTerm(body.gender);
     const children = normalizeTerm(body.children);
     const freetextRaw = normalizeTerm(body.freetext);
-    const freetextKeywords: string[] | null = freetextRaw
-      ? extractKeywords(freetextRaw)
-      : null;
+    const parsed = freetextRaw ? parseFreetextQuery(freetextRaw) : null;
+    const ftGender: string | null = parsed?.gender ?? null;
+    const ftAgeMin: number | null = parsed?.ageMin ?? null;
+    const ftAgeMax: number | null = parsed?.ageMax ?? null;
+    const ftNoChildren: boolean = parsed?.noChildren ?? false;
+    const ftKeywords: string[] | null =
+      parsed && parsed.keywords.length > 0 ? parsed.keywords : null;
     const limit = clampNumber(body.limit, 1, 500, 200);
     const offset = clampNumber(body.offset, 0, 10_000, 0);
 
@@ -207,6 +305,11 @@ Deno.serve(async (req: Request) => {
           coalesce(aa.prenom, '') AS prenom,
           coalesce(nullif(fs.phone, ''), aa.telephone, '') AS telephone,
           coalesce(aa.age, '') AS age,
+          CASE
+            WHEN regexp_replace(coalesce(aa.age, ''), '[^0-9]', '', 'g') ~ '^[0-9]+$'
+            THEN regexp_replace(coalesce(aa.age, ''), '[^0-9]', '', 'g')::int
+            ELSE NULL
+          END AS age_num,
           coalesce(aa.genre, '') AS genre,
           coalesce(aa.enfants, '') AS enfants,
           coalesce(at.full_text, '') AS full_text
@@ -255,13 +358,37 @@ Deno.serve(async (req: Request) => {
         OR unaccent(s.enfants) ILIKE '%' || unaccent(${children}) || '%'
       )
       AND (
-        ${freetextKeywords}::text[] IS NULL
-        OR (
-          SELECT bool_and(s.full_text LIKE '%' || lower(unaccent(kw.word)) || '%')
-          FROM unnest(${freetextKeywords}::text[]) AS kw(word)
-        )
+        ${ftGender}::text IS NULL
+        OR unaccent(lower(s.genre)) LIKE '%' || unaccent(lower(${ftGender})) || '%'
       )
-      ORDER BY s.nom ASC, s.prenom ASC
+      AND (
+        ${ftAgeMin}::int IS NULL
+        OR (s.age_num IS NOT NULL AND s.age_num >= ${ftAgeMin} AND s.age_num <= ${ftAgeMax})
+      )
+      AND (
+        ${ftNoChildren}::boolean = false
+        OR unaccent(lower(s.enfants)) LIKE '%non%'
+        OR unaccent(lower(s.enfants)) LIKE '%pas%'
+        OR unaccent(lower(s.enfants)) LIKE '%aucun%'
+        OR s.enfants = '0'
+      )
+      AND (
+        ${ftKeywords}::text[] IS NULL
+        OR (
+          SELECT count(*) FILTER (
+            WHERE s.full_text LIKE '%' || lower(unaccent(kw.word)) || '%'
+          )
+          FROM unnest(${ftKeywords}::text[]) AS kw(word)
+        ) >= 1
+      )
+      ORDER BY
+        CASE WHEN ${ftKeywords}::text[] IS NOT NULL THEN
+          -(SELECT count(*) FILTER (
+              WHERE s.full_text LIKE '%' || lower(unaccent(kw.word)) || '%'
+            )
+            FROM unnest(${ftKeywords}::text[]) AS kw(word))
+        ELSE 0 END,
+        s.nom ASC, s.prenom ASC
       LIMIT ${limit}
       OFFSET ${offset}
     `;
@@ -271,6 +398,13 @@ Deno.serve(async (req: Request) => {
         ok: true,
         count: rows.length,
         rows,
+        _debug: parsed ? {
+          ftGender,
+          ftAgeMin,
+          ftAgeMax,
+          ftNoChildren,
+          ftKeywords,
+        } : undefined,
       }),
       {
         headers: { ...corsHeaders, "content-type": "application/json" },
