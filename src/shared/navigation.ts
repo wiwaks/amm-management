@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   History,
   Users,
+  FileText,
   Settings,
   LifeBuoy,
   type LucideIcon,
@@ -23,6 +24,7 @@ export const NAV_MAIN: NavItem[] = [
   { label: 'Historique', icon: History, route: null, disabled: true },
   { label: 'Recherche', icon: Search, route: '/recherche' },
   { label: 'Modération', icon: Shield, route: '/moderation' },
+  { label: 'Templates', icon: FileText, route: '/templates' },
   { label: 'Clients', icon: Users, route: null, disabled: true },
 ]
 

@@ -19,6 +19,7 @@ type SearchSubmissionsParams = {
   age?: string
   gender?: string
   children?: string
+  freetext?: string
   limit?: number
   offset?: number
 }
@@ -59,6 +60,7 @@ export async function searchSubmissions(
       age: params.age,
       gender: params.gender,
       children: params.children,
+      freetext: params.freetext,
       limit: params.limit,
       offset: params.offset,
     }),

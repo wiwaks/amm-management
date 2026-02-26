@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { Search, User, Mail, Phone, Calendar, Users, Heart, ListFilter, Check } from 'lucide-react'
+import { Search, User, Mail, Phone, Calendar, Users, Heart, ListFilter, Check, FileText, Sparkles } from 'lucide-react'
 import { cn } from '../../../shared/utils/cn'
 import { Skeleton } from '../../../shared/components/ui/skeleton'
 import { Input } from '../../../shared/components/ui/input'
@@ -20,6 +21,7 @@ import {
 import { generateInvitation } from '../../../services/supabase/invitations'
 import {
   fetchSubmissionAnswers,
+  normalizeAllSubmissions,
   type FormSubmissionAnswer,
 } from '../../../services/supabase/formSubmissionAnswers'
 import {
@@ -53,6 +55,31 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '../../../shared/components/ui/popover'
 import { Toast } from '../../../shared/components/ui/toast'
 import type { GenerateInvitationResult } from '../../../shared/types'
+
+const SEARCH_CACHE_KEY = 'recherche_last_search'
+
+type CachedSearch = {
+  mode: 'structured' | 'freetext'
+  params: { name?: string; email?: string; phone?: string; age?: string; gender?: string; children?: string }
+  freetextQuery?: string
+  results: SearchSubmission[]
+}
+
+function saveSearchCache(data: CachedSearch) {
+  try {
+    sessionStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify(data))
+  } catch { /* ignore quota errors */ }
+}
+
+function loadSearchCache(): CachedSearch | null {
+  try {
+    const raw = sessionStorage.getItem(SEARCH_CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as CachedSearch
+  } catch {
+    return null
+  }
+}
 
 type ToastMessage = {
   title: string
@@ -203,6 +230,7 @@ function ColumnFilterHeader<TData>({
 }
 
 function RechercheDashboard() {
+  const navigate = useNavigate()
   const session = getSession()
   const accessToken = session?.accessToken
   const [questionMap, setQuestionMap] = useState<FormQuestionMap[]>([])
@@ -214,7 +242,10 @@ function RechercheDashboard() {
   )
   const [generatedDeepLink, setGeneratedDeepLink] = useState<string | null>(null)
   const answersCacheRef = useRef<Record<string, FormSubmissionAnswer[]>>({})
-  const [showForm, setShowForm] = useState(true)
+  const cachedSearch = useRef(loadSearchCache())
+  const [searchMode, setSearchMode] = useState<'structured' | 'freetext'>(() => cachedSearch.current?.mode ?? 'structured')
+  const [showForm, setShowForm] = useState(() => !cachedSearch.current)
+  const freetextRef = useRef<HTMLTextAreaElement | null>(null)
   const nameInputRef = useRef<HTMLInputElement | null>(null)
   const emailInputRef = useRef<HTMLInputElement | null>(null)
   const phoneInputRef = useRef<HTMLInputElement | null>(null)
@@ -222,8 +253,11 @@ function RechercheDashboard() {
   const genderInputRef = useRef<HTMLSelectElement | null>(null)
   const childrenInputRef = useRef<HTMLSelectElement | null>(null)
 
+  const lastSearchParamsRef = useRef<CachedSearch['params']>({})
+
   const searchMutation = useMutation({
     mutationFn: async (params: { name?: string; email?: string; phone?: string; age?: string; gender?: string; children?: string }) => {
+      lastSearchParamsRef.current = params
       return searchSubmissions({
         name: params.name,
         email: params.email,
@@ -236,6 +270,7 @@ function RechercheDashboard() {
     },
     onSuccess: (data) => {
       setShowForm(false)
+      saveSearchCache({ mode: 'structured', params: lastSearchParamsRef.current, results: data })
       setToast({
         title: 'Recherche terminée',
         description: `${data.length} réponses trouvées.`,
@@ -269,6 +304,34 @@ function RechercheDashboard() {
     })
   }, [searchMutation])
 
+  const freetextMutation = useMutation({
+    mutationFn: async (query: string) => {
+      return searchSubmissions({ freetext: query, limit: 200 })
+    },
+    onSuccess: (data) => {
+      setShowForm(false)
+      saveSearchCache({ mode: 'freetext', params: {}, freetextQuery: freetextRef.current?.value.trim() ?? '', results: data })
+      setToast({
+        title: 'Recherche terminée',
+        description: `${data.length} profil(s) trouvé(s).`,
+        variant: 'info',
+      })
+    },
+    onError: (error) => {
+      setToast({
+        title: 'Erreur de recherche',
+        description: error.message,
+        variant: 'error',
+      })
+    },
+  })
+
+  const handleFreetextSearch = useCallback(() => {
+    const query = freetextRef.current?.value.trim() ?? ''
+    if (!query) return
+    freetextMutation.mutate(query)
+  }, [freetextMutation])
+
   const syncMutation = useMutation({
     mutationFn: async () => {
       const formId = import.meta.env.VITE_GOOGLE_FORM_ID as string | undefined
@@ -293,6 +356,32 @@ function RechercheDashboard() {
     onError: (error) => {
       setToast({
         title: 'Erreur de synchronisation',
+        description: error.message,
+        variant: 'error',
+      })
+    },
+  })
+
+  const normalizeMutation = useMutation({
+    mutationFn: async () => {
+      return normalizeAllSubmissions()
+    },
+    onSuccess: (result) => {
+      answersCacheRef.current = {}
+      setToast({
+        title: 'Normalisation terminée',
+        description: `${result.normalized} soumission(s) traitée(s), ${result.answersCreated} réponse(s) créée(s).`,
+        variant: 'success',
+      })
+      if (selectedSubmission) {
+        fetchSubmissionAnswers(selectedSubmission.id).then((answers) => {
+          setSelectedSubmission((prev) => prev ? { ...prev, answers } : null)
+        })
+      }
+    },
+    onError: (error) => {
+      setToast({
+        title: 'Erreur de normalisation',
         description: error.message,
         variant: 'error',
       })
@@ -373,6 +462,27 @@ function RechercheDashboard() {
   }, [toast])
 
   useEffect(() => {
+    if (!showForm) return
+    requestAnimationFrame(() => {
+      if (searchMode === 'freetext') {
+        const query = cachedSearch.current?.freetextQuery ?? ''
+        if (freetextRef.current) freetextRef.current.value = query
+      } else {
+        const params = lastSearchParamsRef.current.name
+          ? lastSearchParamsRef.current
+          : cachedSearch.current?.params
+        if (!params) return
+        if (nameInputRef.current) nameInputRef.current.value = params.name ?? ''
+        if (emailInputRef.current) emailInputRef.current.value = params.email ?? ''
+        if (phoneInputRef.current) phoneInputRef.current.value = params.phone ?? ''
+        if (ageInputRef.current) ageInputRef.current.value = params.age ?? ''
+        if (genderInputRef.current) genderInputRef.current.value = params.gender ?? ''
+        if (childrenInputRef.current) childrenInputRef.current.value = params.children ?? ''
+      }
+    })
+  }, [showForm, searchMode])
+
+  useEffect(() => {
     let isMounted = true
     fetchFormQuestionMap()
       .then((data) => {
@@ -387,7 +497,10 @@ function RechercheDashboard() {
     }
   }, [])
 
-  const submissions = useMemo(() => searchMutation.data ?? [], [searchMutation.data])
+  const submissions = useMemo(
+    () => searchMutation.data ?? freetextMutation.data ?? cachedSearch.current?.results ?? [],
+    [searchMutation.data, freetextMutation.data],
+  )
 
   const tableData = useMemo<SubmissionRow[]>(() => {
     return submissions.map((submission) => {
@@ -487,6 +600,31 @@ function RechercheDashboard() {
         },
       },
       {
+        id: 'loverCv',
+        header: '',
+        enableGlobalFilter: false,
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={() =>
+              navigate(`/recherche/lover-cv/${row.original.id}`, {
+                state: {
+                  prenom: row.original.prenom,
+                  nom: row.original.nom,
+                  age: row.original.age,
+                  email: row.original.email,
+                  phone: row.original.phone || row.original.telephone,
+                },
+              })
+            }
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 bg-secondary"
+          >
+            <FileText className="size-3.5" />
+            Lover CV
+          </button>
+        ),
+      },
+      {
         id: 'action',
         header: '',
         enableGlobalFilter: false,
@@ -521,7 +659,7 @@ function RechercheDashboard() {
         },
       },
     ],
-    [handleOpenSubmission, loadingSubmissionId],
+    [handleOpenSubmission, loadingSubmissionId, navigate],
   )
 
   const globalFilterFn: FilterFn<SubmissionRow> = useCallback(
@@ -543,7 +681,7 @@ function RechercheDashboard() {
     getFacetedUniqueValues: getFacetedUniqueValues(),
     globalFilterFn,
     initialState: {
-      pagination: { pageSize: 5 },
+      pagination: { pageSize: 10 },
     },
   })
 
@@ -568,114 +706,173 @@ function RechercheDashboard() {
               <CardHeader className="text-center">
                 <CardTitle className="text-2xl">Recherche</CardTitle>
                 <CardDescription>
-                  Recherchez par nom, email, téléphone ou critères
+                  {searchMode === 'freetext'
+                    ? 'Recherche libre dans toutes les réponses des candidats'
+                    : 'Recherchez par nom, email, téléphone ou critères'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <User className="size-4 text-muted-foreground" />
-                      Nom
-                    </label>
-                    <Input
-                      ref={nameInputRef}
-                      type="text"
-                      placeholder="ex: Dupont, Marie..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Mail className="size-4 text-muted-foreground" />
-                      Email
-                    </label>
-                    <Input
-                      ref={emailInputRef}
-                      type="email"
-                      placeholder="ex: jane@email.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Phone className="size-4 text-muted-foreground" />
-                      Téléphone
-                    </label>
-                    <Input
-                      ref={phoneInputRef}
-                      type="tel"
-                      placeholder="ex: 06 12 34 56 78"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Calendar className="size-4 text-muted-foreground" />
-                      Âge
-                    </label>
-                    <Input
-                      ref={ageInputRef}
-                      type="text"
-                      placeholder="ex: 30"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Users className="size-4 text-muted-foreground" />
-                      Sexe
-                    </label>
-                    <select
-                      ref={genderInputRef}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="">Tous</option>
-                      <option value="homme">Homme</option>
-                      <option value="femme">Femme</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Heart className="size-4 text-muted-foreground" />
-                      Enfants
-                    </label>
-                    <select
-                      ref={childrenInputRef}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="">Tous</option>
-                      <option value="oui">Oui</option>
-                      <option value="non">Non</option>
-                    </select>
-                  </div>
+                {/* Toggle: Classique / Libre */}
+                <div className="flex items-center justify-center gap-1 rounded-lg bg-muted p-1">
+                  <button
+                    type="button"
+                    onClick={() => setSearchMode('structured')}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                      searchMode === 'structured'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <Search className="size-3.5" />
+                    Classique
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearchMode('freetext')}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                      searchMode === 'freetext'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <Sparkles className="size-3.5" />
+                    Recherche libre
+                  </button>
                 </div>
 
-                {missingEnvVars.length > 0 ? (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                    Variables d'environnement manquantes: {missingEnvVars.join(', ')}
-                  </div>
-                ) : null}
+                {searchMode === 'freetext' ? (
+                  <>
+                    <textarea
+                      ref={freetextRef}
+                      rows={3}
+                      placeholder="Décrivez le profil recherché... Ex: sportive voyage sans enfants femme"
+                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Les mots-clés sont recherchés dans toutes les réponses du questionnaire. Chaque mot doit apparaître au moins une fois.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        onClick={handleFreetextSearch}
+                        disabled={freetextMutation.isPending || missingEnvVars.length > 0}
+                        className="gap-2"
+                      >
+                        <Sparkles className="size-4" />
+                        {freetextMutation.isPending ? 'Recherche...' : 'Rechercher'}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                          <User className="size-4 text-muted-foreground" />
+                          Nom
+                        </label>
+                        <Input
+                          ref={nameInputRef}
+                          type="text"
+                          placeholder="ex: Dupont, Marie..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                          <Mail className="size-4 text-muted-foreground" />
+                          Email
+                        </label>
+                        <Input
+                          ref={emailInputRef}
+                          type="email"
+                          placeholder="ex: jane@email.com"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                          <Phone className="size-4 text-muted-foreground" />
+                          Téléphone
+                        </label>
+                        <Input
+                          ref={phoneInputRef}
+                          type="tel"
+                          placeholder="ex: 06 12 34 56 78"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                          <Calendar className="size-4 text-muted-foreground" />
+                          Âge
+                        </label>
+                        <Input
+                          ref={ageInputRef}
+                          type="text"
+                          placeholder="ex: 30"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                          <Users className="size-4 text-muted-foreground" />
+                          Sexe
+                        </label>
+                        <select
+                          ref={genderInputRef}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="">Tous</option>
+                          <option value="homme">Homme</option>
+                          <option value="femme">Femme</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                          <Heart className="size-4 text-muted-foreground" />
+                          Enfants
+                        </label>
+                        <select
+                          ref={childrenInputRef}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="">Tous</option>
+                          <option value="oui">Oui</option>
+                          <option value="non">Non</option>
+                        </select>
+                      </div>
+                    </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    onClick={handleSearchClick}
-                    disabled={searchMutation.isPending || missingEnvVars.length > 0}
-                    className="gap-2"
-                  >
-                    <Search className="size-4" />
-                    {searchMutation.isPending ? 'Recherche...' : 'Rechercher'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => syncMutation.mutate()}
-                    disabled={syncMutation.isPending || missingEnvVars.length > 0}
-                    className="text-muted-foreground"
-                  >
-                    {syncMutation.isPending
-                      ? 'Mise à jour...'
-                      : 'Mettre à jour les libellés'}
-                  </Button>
-                </div>
+                    {missingEnvVars.length > 0 ? (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                        Variables d'environnement manquantes: {missingEnvVars.join(', ')}
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        onClick={handleSearchClick}
+                        disabled={searchMutation.isPending || missingEnvVars.length > 0}
+                        className="gap-2"
+                      >
+                        <Search className="size-4" />
+                        {searchMutation.isPending ? 'Recherche...' : 'Rechercher'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => syncMutation.mutate()}
+                        disabled={syncMutation.isPending || missingEnvVars.length > 0}
+                        className="text-muted-foreground"
+                      >
+                        {syncMutation.isPending
+                          ? 'Mise à jour...'
+                          : 'Mettre à jour les libellés'}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -731,7 +928,7 @@ function RechercheDashboard() {
                         ))}
                       </TableHeader>
                       <TableBody>
-                        {searchMutation.isPending ? (
+                        {(searchMutation.isPending || freetextMutation.isPending) ? (
                           Array.from({ length: 5 }).map((_, i) => (
                             <TableRow key={i}>
                               <TableCell className="py-2.5"><Skeleton className="h-4 w-24" /></TableCell>
@@ -741,17 +938,18 @@ function RechercheDashboard() {
                               <TableCell className="py-2.5"><Skeleton className="h-4 w-16" /></TableCell>
                               <TableCell className="py-2.5"><Skeleton className="h-4 w-12" /></TableCell>
                               <TableCell className="py-2.5"><Skeleton className="h-4 w-16" /></TableCell>
+                              <TableCell className="py-2.5"><Skeleton className="h-4 w-16" /></TableCell>
                             </TableRow>
                           ))
                         ) : tableData.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            <TableCell colSpan={8} className="text-center text-muted-foreground">
                               Aucun résultat.
                             </TableCell>
                           </TableRow>
                         ) : table.getRowModel().rows.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            <TableCell colSpan={8} className="text-center text-muted-foreground">
                               Aucun résultat pour ce filtre.
                             </TableCell>
                           </TableRow>
@@ -838,6 +1036,23 @@ function RechercheDashboard() {
                       disabled={inviteMutation.isPending}
                     >
                       {inviteMutation.isPending ? 'Génération...' : 'Inviter'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        navigate(`/recherche/lover-cv/${selectedSubmission.id}`, {
+                          state: {
+                            email: selectedSubmission.email,
+                            phone: selectedSubmission.phone,
+                          },
+                        })
+                      }
+                      className="gap-1.5"
+                    >
+                      <FileText className="size-3.5" />
+                      Lover CV
                     </Button>
                     <Button
                       type="button"
@@ -945,7 +1160,20 @@ function RechercheDashboard() {
                           <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
                             {questionMap.length === 0
                               ? 'Aucun libellé chargé. Cliquez sur "Mettre à jour les libellés" pour synchroniser.'
-                              : `Aucune réponse trouvée (${selectedSubmission.answers.length} réponse(s) brute(s), ${questionMap.length} libellé(s)).`}
+                              : (
+                                <div className="space-y-3">
+                                  <p>{`Aucune réponse trouvée (${selectedSubmission.answers.length} réponse(s) brute(s), ${questionMap.length} libellé(s)).`}</p>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => normalizeMutation.mutate()}
+                                    disabled={normalizeMutation.isPending}
+                                  >
+                                    {normalizeMutation.isPending ? 'Normalisation...' : 'Normaliser les réponses'}
+                                  </Button>
+                                </div>
+                              )}
                           </div>
                         )
                       }
