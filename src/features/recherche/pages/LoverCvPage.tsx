@@ -202,11 +202,14 @@ export default function LoverCvPage() {
           width: 297mm;
           height: 210mm;
           overflow: hidden;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         body > * {
           max-height: 210mm;
           overflow: hidden;
         }
+        * { box-shadow: none !important; }
       </style>
     `
 
