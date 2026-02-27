@@ -188,23 +188,37 @@ export default function LoverCvPage() {
 
   const handleDownload = useCallback(async () => {
     if (!selectedGeneration) return
-    // Create an offscreen container with A4 landscape dimensions
-    const container = document.createElement('div')
-    container.style.position = 'fixed'
-    container.style.left = '-9999px'
-    container.style.width = '297mm'
-    container.style.height = '210mm'
-    container.style.overflow = 'hidden'
-    container.style.background = 'white'
-    container.innerHTML = selectedGeneration.html_content
-    document.body.appendChild(container)
+    // Use an iframe so the full HTML document (head/style/body) renders correctly
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.left = '-9999px'
+    iframe.style.width = '297mm'
+    iframe.style.height = '210mm'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document
+    if (!doc) { document.body.removeChild(iframe); return }
+    doc.open()
+    doc.write(selectedGeneration.html_content)
+    doc.close()
+
+    // Wait for iframe content (images, fonts, etc.) to fully load
+    await new Promise<void>((resolve) => {
+      iframe.onload = () => resolve()
+      // Fallback in case onload already fired
+      setTimeout(resolve, 2000)
+    })
 
     try {
-      const dataUrl = await toJpeg(container, {
+      const body = doc.body
+      body.style.margin = '0'
+      body.style.background = 'white'
+      const dataUrl = await toJpeg(body, {
         quality: 0.95,
         pixelRatio: 2,
-        width: container.offsetWidth,
-        height: container.offsetHeight,
+        width: iframe.offsetWidth,
+        height: iframe.offsetHeight,
         backgroundColor: '#ffffff',
       })
       const link = document.createElement('a')
@@ -213,7 +227,7 @@ export default function LoverCvPage() {
       link.href = dataUrl
       link.click()
     } finally {
-      document.body.removeChild(container)
+      document.body.removeChild(iframe)
     }
   }, [selectedGeneration, candidateInfo.name])
 
