@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { ArrowLeft, FileText, ExternalLink, Download, Trash2, Clock } from 'lucide-react'
-import { toJpeg } from 'html-to-image'
-import { jsPDF } from 'jspdf'
 import { cn } from '../../../shared/utils/cn'
 import { Button } from '../../../shared/components/ui/button'
 import {
@@ -187,106 +185,39 @@ export default function LoverCvPage() {
     w.document.close()
   }, [selectedGeneration])
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = useCallback(() => {
     if (!selectedGeneration) return
-    // A4 landscape dimensions in px for capture
-    const PAGE_W = 1960
-    const PAGE_H = 1386
 
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'fixed'
-    iframe.style.left = '-9999px'
-    iframe.style.width = `${PAGE_W}px`
-    iframe.style.height = `${PAGE_H}px`
-    iframe.style.border = 'none'
-    document.body.appendChild(iframe)
+    // Open a new window with the HTML content and trigger print (Save as PDF)
+    // This produces a real PDF with selectable/editable text for Canva
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
 
-    const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document
-    if (!iframeDoc) { document.body.removeChild(iframe); return }
-    iframeDoc.open()
-    iframeDoc.write(selectedGeneration.html_content)
-    iframeDoc.close()
-
-    await new Promise<void>((resolve) => {
-      iframe.onload = () => resolve()
-      setTimeout(resolve, 2000)
-    })
-
-    // Inline external fonts as base64 so html-to-image preserves them
-    const fontLinks = iframeDoc.querySelectorAll('link[href*="fonts.googleapis.com"]')
-    for (const link of fontLinks) {
-      try {
-        const cssUrl = link.getAttribute('href')
-        if (!cssUrl) continue
-        const cssResp = await fetch(cssUrl)
-        let cssText = await cssResp.text()
-        // Replace each font url(...) with base64 data URI
-        const urlMatches = cssText.match(/url\((https?:\/\/[^)]+)\)/g) ?? []
-        for (const urlMatch of urlMatches) {
-          const fontUrl = urlMatch.slice(4, -1)
-          try {
-            const fontResp = await fetch(fontUrl)
-            const fontBlob = await fontResp.blob()
-            const base64 = await new Promise<string>((res) => {
-              const reader = new FileReader()
-              reader.onloadend = () => res(reader.result as string)
-              reader.readAsDataURL(fontBlob)
-            })
-            cssText = cssText.replace(fontUrl, base64)
-          } catch { /* skip font if fetch fails */ }
+    const printCss = `
+      <style>
+        @page { size: A4 landscape; margin: 0; }
+        @media print {
+          html, body { margin: 0; padding: 0; }
         }
-        const style = iframeDoc.createElement('style')
-        style.textContent = cssText
-        iframeDoc.head.appendChild(style)
-        link.remove()
-      } catch { /* skip link if fetch fails */ }
+      </style>
+    `
+
+    // Inject print styles before closing </head> or at the end
+    const htmlContent = selectedGeneration.html_content.includes('</head>')
+      ? selectedGeneration.html_content.replace('</head>', `${printCss}</head>`)
+      : `${printCss}${selectedGeneration.html_content}`
+
+    printWindow.document.open()
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+
+    // Wait for fonts to load then trigger print dialog
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print()
+      }, 500)
     }
-
-    // Wait for fonts to be ready
-    if (iframeDoc.fonts) await iframeDoc.fonts.ready
-
-    try {
-      const body = iframeDoc.body
-      const root = iframeDoc.documentElement
-      root.style.margin = '0'
-      root.style.padding = '0'
-      body.style.margin = '0'
-      body.style.padding = '0'
-      body.style.background = 'white'
-      body.style.overflow = 'hidden'
-
-      // Scale content to fit within the fixed page dimensions
-      const contentW = body.scrollWidth
-      const contentH = body.scrollHeight
-      const scale = Math.min(PAGE_W / contentW, PAGE_H / contentH, 1)
-      if (scale < 1) {
-        body.style.transformOrigin = 'top left'
-        body.style.transform = `scale(${scale})`
-        body.style.width = `${100 / scale}%`
-      }
-
-      await new Promise((r) => requestAnimationFrame(r))
-
-      const dataUrl = await toJpeg(body, {
-        quality: 0.95,
-        pixelRatio: 3,
-        width: PAGE_W,
-        height: PAGE_H,
-        backgroundColor: '#ffffff',
-      })
-
-      // Create PDF A4 landscape and embed the captured image
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-      const pdfW = pdf.internal.pageSize.getWidth()
-      const pdfH = pdf.internal.pageSize.getHeight()
-      pdf.addImage(dataUrl, 'JPEG', 0, 0, pdfW, pdfH)
-
-      const name = candidateInfo.name !== 'Chargement...' ? candidateInfo.name : 'lover-cv'
-      pdf.save(`lover-cv-${name.replace(/\s+/g, '-').toLowerCase()}.pdf`)
-    } finally {
-      document.body.removeChild(iframe)
-    }
-  }, [selectedGeneration, candidateInfo.name])
+  }, [selectedGeneration])
 
   return (
     <div className="flex h-full flex-col">
