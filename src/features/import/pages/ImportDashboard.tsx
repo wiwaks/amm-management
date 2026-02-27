@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { fetchFormResponses } from '../../../services/google/forms'
+import { fetchFormResponses, fetchFormQuestionMap } from '../../../services/google/forms'
 import { getSession } from '../../../shared/auth/sessionManager'
 import type { ImportResult } from '../../../shared/types'
 import { Badge } from '../../../shared/components/ui/badge'
@@ -24,16 +24,28 @@ import {
 import { Toast } from '../../../shared/components/ui/toast'
 import { normalizeAllSubmissions } from '../../../services/supabase/formSubmissionAnswers'
 
+type GoogleFormsAnswer = {
+  textAnswers?: { answers?: Array<{ value?: string }> }
+  fileUploadAnswers?: { answers?: Array<{ fileId?: string; fileName?: string }> }
+}
+
 type GoogleFormsResponse = {
   responseId?: string
   createTime?: string
   lastSubmittedTime?: string
-  answers?: Record<string, unknown>
+  answers?: Record<string, GoogleFormsAnswer>
+}
+
+type QuestionColumn = {
+  question_id: string
+  label: string
+  display_order: number
 }
 
 type GoogleFormsPreview = {
-  responses?: GoogleFormsResponse[]
-  totalResponses?: number
+  responses: GoogleFormsResponse[]
+  columns: QuestionColumn[]
+  totalResponses: number
 }
 
 type ToastMessage = {
@@ -54,45 +66,20 @@ function formatDate(value?: string) {
   })
 }
 
-function summarizeAnswers(answers?: Record<string, unknown>) {
-  if (!answers) return { count: 0, preview: '--' }
-  const entries = Object.values(answers)
-  const values: string[] = []
-
-  for (const entry of entries) {
-    if (!entry || typeof entry !== 'object') continue
-    const record = entry as Record<string, unknown>
-    const textAnswers = record.textAnswers as
-      | { answers?: Array<{ value?: string }> }
-      | undefined
-    const fileAnswers = record.fileUploadAnswers as
-      | { answers?: Array<{ fileId?: string; fileName?: string }> }
-      | undefined
-
-    if (textAnswers?.answers?.length) {
-      for (const answer of textAnswers.answers) {
-        if (answer?.value) values.push(answer.value)
-      }
-    } else if (fileAnswers?.answers?.length) {
-      for (const answer of fileAnswers.answers) {
-        if (answer?.fileName || answer?.fileId) {
-          values.push(answer.fileName || answer.fileId || '')
-        }
-      }
-    }
+function getAnswerValue(answers: Record<string, GoogleFormsAnswer> | undefined, questionId: string): string {
+  if (!answers) return '--'
+  const entry = answers[questionId]
+  if (!entry) return '--'
+  if (entry.textAnswers?.answers?.length) {
+    return entry.textAnswers.answers.map((a) => a.value ?? '').filter(Boolean).join(', ') || '--'
   }
-
-  const previewValues = values.filter(Boolean)
-  const preview =
-    previewValues.length === 0
-      ? `${Object.keys(answers).length} champs`
-      : previewValues.slice(0, 2).join(' | ')
-
-  return {
-    count: Object.keys(answers).length,
-    preview,
+  if (entry.fileUploadAnswers?.answers?.length) {
+    return entry.fileUploadAnswers.answers.map((a) => a.fileName ?? a.fileId ?? '').filter(Boolean).join(', ') || '--'
   }
+  return '--'
 }
+
+const PAGE_SIZE = 10
 
 function ImportDashboard() {
   const session = getSession()
@@ -105,22 +92,32 @@ function ImportDashboard() {
     | undefined
   const [toast, setToast] = useState<ToastMessage | null>(null)
 
+  const [previewPage, setPreviewPage] = useState(0)
+
   const previewMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<GoogleFormsPreview> => {
       if (!formId) {
         throw new Error('Missing VITE_GOOGLE_FORM_ID.')
       }
       if (!accessToken) {
         throw new Error('Session expirée. Reconnectez-vous.')
       }
-      return fetchFormResponses(formId, accessToken)
+      const [responsesData, columns] = await Promise.all([
+        fetchFormResponses(formId, accessToken),
+        fetchFormQuestionMap(formId, accessToken),
+      ])
+      const responses = (responsesData.responses ?? []) as GoogleFormsResponse[]
+      return {
+        responses,
+        columns: columns.slice(0, 6),
+        totalResponses: responses.length,
+      }
     },
     onSuccess: (data) => {
-      const preview = data as GoogleFormsPreview
-      const total = preview.totalResponses ?? preview.responses?.length ?? 0
+      setPreviewPage(0)
       setToast({
         title: 'Prévisualisation chargée',
-        description: `${total} réponses détectées.`,
+        description: `${data.totalResponses} réponses détectées.`,
         variant: 'info',
       })
     },
@@ -210,20 +207,23 @@ function ImportDashboard() {
     return () => clearTimeout(timer)
   }, [toast])
 
-  const previewData = previewMutation.data as GoogleFormsPreview | undefined
-  const responses = useMemo(() => previewData?.responses ?? [], [previewData])
-  const previewRows = useMemo(
+  const previewData = previewMutation.data
+  const columns = useMemo(() => previewData?.columns ?? [], [previewData])
+  const sortedResponses = useMemo(
     () =>
-      [...responses]
-        .sort((a, b) => {
-          const dateA = new Date(a.lastSubmittedTime || a.createTime || 0).getTime()
-          const dateB = new Date(b.lastSubmittedTime || b.createTime || 0).getTime()
-          return dateB - dateA
-        })
-        .slice(0, 4),
-    [responses],
+      [...(previewData?.responses ?? [])].sort((a, b) => {
+        const dateA = new Date(a.lastSubmittedTime || a.createTime || 0).getTime()
+        const dateB = new Date(b.lastSubmittedTime || b.createTime || 0).getTime()
+        return dateB - dateA
+      }),
+    [previewData],
   )
-  const totalResponses = previewData?.totalResponses ?? responses.length
+  const totalResponses = previewData?.totalResponses ?? 0
+  const totalPages = Math.max(1, Math.ceil(sortedResponses.length / PAGE_SIZE))
+  const pagedRows = useMemo(
+    () => sortedResponses.slice(previewPage * PAGE_SIZE, (previewPage + 1) * PAGE_SIZE),
+    [sortedResponses, previewPage],
+  )
   const importStats = importMutation.data
 
   return (
@@ -295,7 +295,7 @@ function ImportDashboard() {
                 <div>
                   <CardTitle>Prévisualisation des réponses</CardTitle>
                   <CardDescription>
-                    Les 4 dernières réponses Google Forms
+                    Réponses Google Forms triées par date
                   </CardDescription>
                 </div>
                 <Badge variant={previewMutation.isSuccess ? 'success' : 'outline'}>
@@ -324,69 +324,81 @@ function ImportDashboard() {
                 </Button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
+              <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="h-10">Response ID</TableHead>
-                      <TableHead className="h-10">Soumis</TableHead>
-                      <TableHead className="h-10">Réponses</TableHead>
+                      <TableHead className="h-10 whitespace-nowrap">Soumis</TableHead>
+                      {columns.map((col) => (
+                        <TableHead key={col.question_id} className="h-10 max-w-[200px] truncate" title={col.label}>
+                          {col.label}
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {previewMutation.isPending ? (
-                      Array.from({ length: 4 }).map((_, i) => (
+                      Array.from({ length: PAGE_SIZE }).map((_, i) => (
                         <TableRow key={i}>
-                          <TableCell className="py-2.5"><Skeleton className="h-4 w-20 font-mono" /></TableCell>
                           <TableCell className="py-2.5"><Skeleton className="h-4 w-24" /></TableCell>
-                          <TableCell className="py-2.5">
-                            <div className="space-y-1">
-                              <Skeleton className="h-4 w-32" />
-                              <Skeleton className="h-3 w-16" />
-                            </div>
-                          </TableCell>
+                          {Array.from({ length: 4 }).map((__, j) => (
+                            <TableCell key={j} className="py-2.5"><Skeleton className="h-4 w-28" /></TableCell>
+                          ))}
                         </TableRow>
                       ))
-                    ) : previewRows.length === 0 ? (
+                    ) : pagedRows.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={3}
+                          colSpan={1 + columns.length}
                           className="h-24 text-center text-muted-foreground"
                         >
                           Aucune réponse à afficher pour le moment.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      previewRows.map((response, index) => {
-                        const summary = summarizeAnswers(response.answers)
-                        return (
-                          <TableRow key={response.responseId ?? index}>
-                            <TableCell className="py-2.5 font-mono text-xs">
-                              {response.responseId?.slice(0, 12) || '--'}
+                      pagedRows.map((response, index) => (
+                        <TableRow key={response.responseId ?? index}>
+                          <TableCell className="py-2.5 text-sm whitespace-nowrap">
+                            {formatDate(response.lastSubmittedTime || response.createTime)}
+                          </TableCell>
+                          {columns.map((col) => (
+                            <TableCell key={col.question_id} className="py-2.5 text-sm max-w-[200px] truncate" title={getAnswerValue(response.answers, col.question_id)}>
+                              {getAnswerValue(response.answers, col.question_id)}
                             </TableCell>
-                            <TableCell className="py-2.5 text-sm">
-                              {formatDate(
-                                response.lastSubmittedTime || response.createTime,
-                              )}
-                            </TableCell>
-                            <TableCell className="py-2.5">
-                              <div className="space-y-0.5">
-                                <p className="text-sm">{summary.preview}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {summary.count} champs
-                                </p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })
+                          ))}
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>
               </div>
-              <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
-                Le JSON brut est masqué pour garder une vue compacte.
-              </div>
+              {sortedResponses.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    Page {previewPage + 1} / {totalPages} — {sortedResponses.length} réponses
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={previewPage === 0}
+                      onClick={() => setPreviewPage((p) => p - 1)}
+                    >
+                      Précédent
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={previewPage >= totalPages - 1}
+                      onClick={() => setPreviewPage((p) => p + 1)}
+                    >
+                      Suivant
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
