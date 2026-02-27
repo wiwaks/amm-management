@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { ArrowLeft, FileText, ExternalLink, Download, Trash2, Clock } from 'lucide-react'
+import { toJpeg } from 'html-to-image'
 import { cn } from '../../../shared/utils/cn'
 import { Button } from '../../../shared/components/ui/button'
 import {
@@ -185,50 +186,36 @@ export default function LoverCvPage() {
     w.document.close()
   }, [selectedGeneration])
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!selectedGeneration) return
-    const fitStyle = `<style>
-      @page { size: A4 landscape; margin: 0; }
-      html, body { margin: 0; padding: 0; width: 297mm; height: 210mm; overflow: hidden; }
-      body > * { transform-origin: top left; }
-    </style>
-    <script>
-      window.addEventListener('beforeprint', function() {
-        var body = document.body;
-        var pageW = 297 * 3.7795275591;
-        var pageH = 210 * 3.7795275591;
-        var contentW = body.scrollWidth;
-        var contentH = body.scrollHeight;
-        var scale = Math.min(pageW / contentW, pageH / contentH, 1);
-        body.style.transform = 'scale(' + scale + ')';
-        body.style.transformOrigin = 'top left';
-        body.style.width = (100 / scale) + '%';
-      });
-    </script>`
-    let html = selectedGeneration.html_content
-    if (html.includes('<head>')) {
-      html = html.replace('<head>', `<head>${fitStyle}`)
-    } else if (html.includes('<html')) {
-      html = html.replace(/<html([^>]*)>/, `<html$1><head>${fitStyle}</head>`)
-    } else {
-      html = `<!DOCTYPE html><html><head>${fitStyle}</head><body>${html}</body></html>`
+    // Create an offscreen container with A4 landscape dimensions
+    const container = document.createElement('div')
+    container.style.position = 'fixed'
+    container.style.left = '-9999px'
+    container.style.width = '297mm'
+    container.style.height = '210mm'
+    container.style.overflow = 'hidden'
+    container.style.background = 'white'
+    container.innerHTML = selectedGeneration.html_content
+    document.body.appendChild(container)
+
+    try {
+      const dataUrl = await toJpeg(container, {
+        quality: 0.95,
+        pixelRatio: 2,
+        width: container.offsetWidth,
+        height: container.offsetHeight,
+        backgroundColor: '#ffffff',
+      })
+      const link = document.createElement('a')
+      const name = candidateInfo.name !== 'Chargement...' ? candidateInfo.name : 'lover-cv'
+      link.download = `lover-cv-${name.replace(/\s+/g, '-').toLowerCase()}.jpg`
+      link.href = dataUrl
+      link.click()
+    } finally {
+      document.body.removeChild(container)
     }
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'fixed'
-    iframe.style.left = '-9999px'
-    iframe.style.width = '297mm'
-    iframe.style.height = '210mm'
-    document.body.appendChild(iframe)
-    const doc = iframe.contentDocument ?? iframe.contentWindow?.document
-    if (!doc) { document.body.removeChild(iframe); return }
-    doc.open()
-    doc.write(html)
-    doc.close()
-    iframe.onload = () => {
-      iframe.contentWindow?.print()
-      setTimeout(() => document.body.removeChild(iframe), 1000)
-    }
-  }, [selectedGeneration])
+  }, [selectedGeneration, candidateInfo.name])
 
   return (
     <div className="flex h-full flex-col">
