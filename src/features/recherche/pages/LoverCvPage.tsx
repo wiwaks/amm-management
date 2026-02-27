@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { ArrowLeft, FileText, ExternalLink, Download, Trash2, Clock } from 'lucide-react'
 import { toJpeg } from 'html-to-image'
+import { jsPDF } from 'jspdf'
 import { cn } from '../../../shared/utils/cn'
 import { Button } from '../../../shared/components/ui/button'
 import {
@@ -188,57 +189,67 @@ export default function LoverCvPage() {
 
   const handleDownload = useCallback(async () => {
     if (!selectedGeneration) return
-    // Use an iframe so the full HTML document (head/style/body) renders correctly
+    // A4 landscape dimensions in px for capture
+    const PAGE_W = 1400
+    const PAGE_H = 990
+
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
     iframe.style.left = '-9999px'
-    // Start large so content renders at its natural width without wrapping
-    iframe.style.width = '1920px'
-    iframe.style.height = '5000px'
+    iframe.style.width = `${PAGE_W}px`
+    iframe.style.height = `${PAGE_H}px`
     iframe.style.border = 'none'
     document.body.appendChild(iframe)
 
-    const doc = iframe.contentDocument ?? iframe.contentWindow?.document
-    if (!doc) { document.body.removeChild(iframe); return }
-    doc.open()
-    doc.write(selectedGeneration.html_content)
-    doc.close()
+    const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document
+    if (!iframeDoc) { document.body.removeChild(iframe); return }
+    iframeDoc.open()
+    iframeDoc.write(selectedGeneration.html_content)
+    iframeDoc.close()
 
-    // Wait for iframe content (images, fonts, etc.) to fully load
     await new Promise<void>((resolve) => {
       iframe.onload = () => resolve()
       setTimeout(resolve, 2000)
     })
 
     try {
-      const body = doc.body
+      const body = iframeDoc.body
+      const root = iframeDoc.documentElement
+      root.style.margin = '0'
+      root.style.padding = '0'
       body.style.margin = '0'
       body.style.padding = '0'
       body.style.background = 'white'
-      // Remove any max-width constraints on the root element
-      const root = doc.documentElement
-      root.style.margin = '0'
-      root.style.padding = '0'
-      // Resize iframe to the actual content dimensions
-      const contentW = Math.max(body.scrollWidth, root.scrollWidth)
-      const contentH = Math.max(body.scrollHeight, root.scrollHeight)
-      iframe.style.width = `${contentW}px`
-      iframe.style.height = `${contentH}px`
-      // Let layout recalculate after resize
+      body.style.overflow = 'hidden'
+
+      // Scale content to fit within the fixed page dimensions
+      const contentW = body.scrollWidth
+      const contentH = body.scrollHeight
+      const scale = Math.min(PAGE_W / contentW, PAGE_H / contentH, 1)
+      if (scale < 1) {
+        body.style.transformOrigin = 'top left'
+        body.style.transform = `scale(${scale})`
+        body.style.width = `${100 / scale}%`
+      }
+
       await new Promise((r) => requestAnimationFrame(r))
 
       const dataUrl = await toJpeg(body, {
         quality: 0.95,
-        pixelRatio: 2,
-        width: contentW,
-        height: contentH,
+        pixelRatio: 3,
+        width: PAGE_W,
+        height: PAGE_H,
         backgroundColor: '#ffffff',
       })
-      const link = document.createElement('a')
+
+      // Create PDF A4 landscape and embed the captured image
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      const pdfW = pdf.internal.pageSize.getWidth()
+      const pdfH = pdf.internal.pageSize.getHeight()
+      pdf.addImage(dataUrl, 'JPEG', 0, 0, pdfW, pdfH)
+
       const name = candidateInfo.name !== 'Chargement...' ? candidateInfo.name : 'lover-cv'
-      link.download = `lover-cv-${name.replace(/\s+/g, '-').toLowerCase()}.jpg`
-      link.href = dataUrl
-      link.click()
+      pdf.save(`lover-cv-${name.replace(/\s+/g, '-').toLowerCase()}.pdf`)
     } finally {
       document.body.removeChild(iframe)
     }
