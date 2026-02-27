@@ -187,14 +187,31 @@ export default function LoverCvPage() {
 
   const handleDownload = useCallback(() => {
     if (!selectedGeneration) return
-    const landscapeStyle = `<style>@page { size: A4 landscape; margin: 0; } body { margin: 0; }</style>`
+    const fitStyle = `<style>
+      @page { size: A4 landscape; margin: 0; }
+      html, body { margin: 0; padding: 0; width: 297mm; height: 210mm; overflow: hidden; }
+      body > * { transform-origin: top left; }
+    </style>
+    <script>
+      window.addEventListener('beforeprint', function() {
+        var body = document.body;
+        var pageW = 297 * 3.7795275591;
+        var pageH = 210 * 3.7795275591;
+        var contentW = body.scrollWidth;
+        var contentH = body.scrollHeight;
+        var scale = Math.min(pageW / contentW, pageH / contentH, 1);
+        body.style.transform = 'scale(' + scale + ')';
+        body.style.transformOrigin = 'top left';
+        body.style.width = (100 / scale) + '%';
+      });
+    </script>`
     let html = selectedGeneration.html_content
     if (html.includes('<head>')) {
-      html = html.replace('<head>', `<head>${landscapeStyle}`)
+      html = html.replace('<head>', `<head>${fitStyle}`)
     } else if (html.includes('<html')) {
-      html = html.replace(/<html([^>]*)>/, `<html$1><head>${landscapeStyle}</head>`)
+      html = html.replace(/<html([^>]*)>/, `<html$1><head>${fitStyle}</head>`)
     } else {
-      html = `<!DOCTYPE html><html><head>${landscapeStyle}</head><body>${html}</body></html>`
+      html = `<!DOCTYPE html><html><head>${fitStyle}</head><body>${html}</body></html>`
     }
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
