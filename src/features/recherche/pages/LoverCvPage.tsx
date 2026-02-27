@@ -192,8 +192,9 @@ export default function LoverCvPage() {
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
     iframe.style.left = '-9999px'
-    iframe.style.width = '297mm'
-    iframe.style.height = '210mm'
+    // Start large so content renders at its natural width without wrapping
+    iframe.style.width = '1920px'
+    iframe.style.height = '5000px'
     iframe.style.border = 'none'
     document.body.appendChild(iframe)
 
@@ -206,19 +207,31 @@ export default function LoverCvPage() {
     // Wait for iframe content (images, fonts, etc.) to fully load
     await new Promise<void>((resolve) => {
       iframe.onload = () => resolve()
-      // Fallback in case onload already fired
       setTimeout(resolve, 2000)
     })
 
     try {
       const body = doc.body
       body.style.margin = '0'
+      body.style.padding = '0'
       body.style.background = 'white'
+      // Remove any max-width constraints on the root element
+      const root = doc.documentElement
+      root.style.margin = '0'
+      root.style.padding = '0'
+      // Resize iframe to the actual content dimensions
+      const contentW = Math.max(body.scrollWidth, root.scrollWidth)
+      const contentH = Math.max(body.scrollHeight, root.scrollHeight)
+      iframe.style.width = `${contentW}px`
+      iframe.style.height = `${contentH}px`
+      // Let layout recalculate after resize
+      await new Promise((r) => requestAnimationFrame(r))
+
       const dataUrl = await toJpeg(body, {
         quality: 0.95,
         pixelRatio: 2,
-        width: iframe.offsetWidth,
-        height: iframe.offsetHeight,
+        width: contentW,
+        height: contentH,
         backgroundColor: '#ffffff',
       })
       const link = document.createElement('a')
