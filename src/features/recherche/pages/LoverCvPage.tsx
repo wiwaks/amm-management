@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { ArrowLeft, FileText, ExternalLink, Trash2, Clock } from 'lucide-react'
+import { ArrowLeft, FileText, ExternalLink, Download, Trash2, Clock } from 'lucide-react'
 import { cn } from '../../../shared/utils/cn'
 import { Button } from '../../../shared/components/ui/button'
 import {
@@ -185,6 +185,29 @@ export default function LoverCvPage() {
     w.document.close()
   }, [selectedGeneration])
 
+  const handleDownload = useCallback(() => {
+    if (!selectedGeneration) return
+    const landscapeStyle = '<style>@page { size: A4 landscape; margin: 0; }</style>'
+    let html = selectedGeneration.html_content
+    if (html.includes('<head>')) {
+      html = html.replace('<head>', `<head>${landscapeStyle}`)
+    } else if (html.includes('<html>')) {
+      html = html.replace('<html>', `<html><head>${landscapeStyle}</head>`)
+    } else {
+      html = `${landscapeStyle}${html}`
+    }
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const name = candidateInfo.name !== 'Chargement...' ? candidateInfo.name : 'lover-cv'
+    a.download = `lover-cv-${name.replace(/\s+/g, '-').toLowerCase()}.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [selectedGeneration, candidateInfo.name])
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -341,15 +364,26 @@ export default function LoverCvPage() {
                 <span className="text-sm font-medium text-muted-foreground">
                   Aperçu — {formatDate(selectedGeneration.created_at)}
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleOpenNewTab}
-                  className="gap-1.5"
-                >
-                  <ExternalLink className="size-3.5" />
-                  Ouvrir dans un nouvel onglet
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownload}
+                    className="gap-1.5"
+                  >
+                    <Download className="size-3.5" />
+                    Télécharger
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOpenNewTab}
+                    className="gap-1.5"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    Ouvrir dans un nouvel onglet
+                  </Button>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
                 <iframe
