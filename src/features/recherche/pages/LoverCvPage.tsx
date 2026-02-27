@@ -212,6 +212,39 @@ export default function LoverCvPage() {
       setTimeout(resolve, 2000)
     })
 
+    // Inline external fonts as base64 so html-to-image preserves them
+    const fontLinks = iframeDoc.querySelectorAll('link[href*="fonts.googleapis.com"]')
+    for (const link of fontLinks) {
+      try {
+        const cssUrl = link.getAttribute('href')
+        if (!cssUrl) continue
+        const cssResp = await fetch(cssUrl)
+        let cssText = await cssResp.text()
+        // Replace each font url(...) with base64 data URI
+        const urlMatches = cssText.match(/url\((https?:\/\/[^)]+)\)/g) ?? []
+        for (const urlMatch of urlMatches) {
+          const fontUrl = urlMatch.slice(4, -1)
+          try {
+            const fontResp = await fetch(fontUrl)
+            const fontBlob = await fontResp.blob()
+            const base64 = await new Promise<string>((res) => {
+              const reader = new FileReader()
+              reader.onloadend = () => res(reader.result as string)
+              reader.readAsDataURL(fontBlob)
+            })
+            cssText = cssText.replace(fontUrl, base64)
+          } catch { /* skip font if fetch fails */ }
+        }
+        const style = iframeDoc.createElement('style')
+        style.textContent = cssText
+        iframeDoc.head.appendChild(style)
+        link.remove()
+      } catch { /* skip link if fetch fails */ }
+    }
+
+    // Wait for fonts to be ready
+    if (iframeDoc.fonts) await iframeDoc.fonts.ready
+
     try {
       const body = iframeDoc.body
       const root = iframeDoc.documentElement
