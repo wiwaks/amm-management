@@ -187,26 +187,31 @@ export default function LoverCvPage() {
 
   const handleDownload = useCallback(() => {
     if (!selectedGeneration) return
-    const landscapeStyle = '<style>@page { size: A4 landscape; margin: 0; }</style>'
+    const landscapeStyle = `<style>@page { size: A4 landscape; margin: 0; } body { margin: 0; }</style>`
     let html = selectedGeneration.html_content
     if (html.includes('<head>')) {
       html = html.replace('<head>', `<head>${landscapeStyle}`)
-    } else if (html.includes('<html>')) {
-      html = html.replace('<html>', `<html><head>${landscapeStyle}</head>`)
+    } else if (html.includes('<html')) {
+      html = html.replace(/<html([^>]*)>/, `<html$1><head>${landscapeStyle}</head>`)
     } else {
-      html = `${landscapeStyle}${html}`
+      html = `<!DOCTYPE html><html><head>${landscapeStyle}</head><body>${html}</body></html>`
     }
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const name = candidateInfo.name !== 'Chargement...' ? candidateInfo.name : 'lover-cv'
-    a.download = `lover-cv-${name.replace(/\s+/g, '-').toLowerCase()}.html`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }, [selectedGeneration, candidateInfo.name])
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.left = '-9999px'
+    iframe.style.width = '297mm'
+    iframe.style.height = '210mm'
+    document.body.appendChild(iframe)
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document
+    if (!doc) { document.body.removeChild(iframe); return }
+    doc.open()
+    doc.write(html)
+    doc.close()
+    iframe.onload = () => {
+      iframe.contentWindow?.print()
+      setTimeout(() => document.body.removeChild(iframe), 1000)
+    }
+  }, [selectedGeneration])
 
   return (
     <div className="flex h-full flex-col">
