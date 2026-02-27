@@ -190,8 +190,8 @@ export default function LoverCvPage() {
   const handleDownload = useCallback(async () => {
     if (!selectedGeneration) return
     // A4 landscape dimensions in px for capture
-    const PAGE_W = 1400
-    const PAGE_H = 990
+    const PAGE_W = 1960
+    const PAGE_H = 1386
 
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
