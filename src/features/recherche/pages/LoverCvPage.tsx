@@ -196,8 +196,16 @@ export default function LoverCvPage() {
     const printCss = `
       <style>
         @page { size: A4 landscape; margin: 0; }
-        @media print {
-          html, body { margin: 0; padding: 0; }
+        html, body {
+          margin: 0;
+          padding: 0;
+          width: 297mm;
+          height: 210mm;
+          overflow: hidden;
+        }
+        body > * {
+          max-height: 210mm;
+          overflow: hidden;
         }
       </style>
     `
