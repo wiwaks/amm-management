@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { ArrowLeft, FileText, ExternalLink, Download, Trash2, Clock } from 'lucide-react'
+import { ArrowLeft, FileText, ExternalLink, Download, Trash2, Clock, Pencil } from 'lucide-react'
 import { cn } from '../../../shared/utils/cn'
 import { Button } from '../../../shared/components/ui/button'
 import {
@@ -27,8 +27,11 @@ import {
   insertGeneration,
   fetchGenerationsBySubmission,
   deleteGeneration,
+  updateGenerationHtml,
   type LoverCvGeneration,
 } from '../../../services/supabase/loverCvGenerations'
+import { lazy, Suspense } from 'react'
+const LoverCvEditor = lazy(() => import('../components/LoverCvEditor'))
 import { getSession } from '../../../shared/auth/sessionManager'
 
 type LocationState = {
@@ -66,6 +69,7 @@ export default function LoverCvPage() {
   const [customPrompt, setCustomPrompt] = useState('')
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
 
   const candidateInfo = useMemo(() => {
     if (locationState?.prenom || locationState?.nom) {
@@ -254,8 +258,8 @@ export default function LoverCvPage() {
 
       {/* Main content */}
       <div className="flex min-h-0 flex-1 gap-4 p-4 lg:p-6">
-        {/* Left panel */}
-        <div className="flex w-[380px] flex-shrink-0 flex-col gap-4">
+        {/* Left panel - hidden in edit mode */}
+        {!editing && <div className="flex w-[380px] flex-shrink-0 flex-col gap-4">
           {/* Generation form */}
           <Card>
             <CardHeader className="pb-3">
@@ -376,46 +380,77 @@ export default function LoverCvPage() {
               )}
             </CardContent>
           </Card>
-        </div>
+        </div>}
 
-        {/* Right panel - Preview */}
+        {/* Right panel - Preview or Editor */}
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {selectedGeneration ? (
-            <>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Aperçu — {formatDate(selectedGeneration.created_at)}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleDownload}
-                    className="gap-1.5"
-                  >
-                    <Download className="size-3.5" />
-                    Télécharger
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleOpenNewTab}
-                    className="gap-1.5"
-                  >
-                    <ExternalLink className="size-3.5" />
-                    Ouvrir dans un nouvel onglet
-                  </Button>
+            editing ? (
+              <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Skeleton className="h-full w-full" /></div>}>
+              <LoverCvEditor
+                htmlContent={selectedGeneration.html_content}
+                submissionId={submissionId!}
+                onSave={async (html) => {
+                  try {
+                    await updateGenerationHtml(selectedGeneration.id, html)
+                    setSelectedGeneration({ ...selectedGeneration, html_content: html })
+                    setGenerations(prev =>
+                      prev.map(g => g.id === selectedGeneration.id ? { ...g, html_content: html } : g),
+                    )
+                    setEditing(false)
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : String(err))
+                  }
+                }}
+                onCancel={() => setEditing(false)}
+              />
+              </Suspense>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Aperçu — {formatDate(selectedGeneration.created_at)}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditing(true)}
+                      className="gap-1.5"
+                    >
+                      <Pencil className="size-3.5" />
+                      Éditer
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDownload}
+                      className="gap-1.5"
+                    >
+                      <Download className="size-3.5" />
+                      Télécharger
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleOpenNewTab}
+                      className="gap-1.5"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      Ouvrir dans un nouvel onglet
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
-                <iframe
-                  title="Aperçu Lover CV"
-                  srcDoc={selectedGeneration.html_content}
-                  className="h-full w-full"
-                  sandbox="allow-same-origin allow-scripts"
-                />
-              </div>
-            </>
+                <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
+                  <iframe
+                    title="Aperçu Lover CV"
+                    srcDoc={selectedGeneration.html_content}
+                    className="h-full w-full"
+                    sandbox="allow-same-origin allow-scripts"
+                  />
+                </div>
+              </>
+            )
           ) : (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed">
               <div className="text-center">

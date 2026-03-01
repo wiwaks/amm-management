@@ -124,3 +124,78 @@
 .animate-float-2 { animation: float-2 12s ease-in-out infinite; }
 .animate-float-3 { animation: float-3 11s ease-in-out infinite; }
 .animate-float-4 { animation: float-4 9s ease-in-out infinite; }
+
+/* GrapesJS theme overrides */
+.gjs-one-bg { background-color: hsl(var(--background)) !important; }
+.gjs-two-color { color: hsl(var(--foreground)) !important; }
+.gjs-three-bg { background-color: hsl(var(--muted)) !important; }
+.gjs-four-color,
+.gjs-four-color-h:hover { color: hsl(var(--primary)) !important; }
+
+/* Hide GrapesJS native panel bar (we use our own sidebar) */
+.gjs-pn-panels { display: none !important; }
+
+/* Right sidebar */
+.gjs-panel-right {
+  flex-basis: 280px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+}
+
+/* Tab switcher - our own tabs rendered as plain HTML buttons */
+.gjs-tab-switcher {
+  display: flex;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.gjs-tab-switcher button {
+  flex: 1;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  transition: all 0.15s;
+}
+.gjs-tab-switcher button.active {
+  color: hsl(var(--primary));
+  border-bottom-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.05);
+}
+
+/* Blocks */
+.gjs-blocks-container { padding: 8px; }
+.gjs-block {
+  width: 100% !important;
+  min-height: auto !important;
+  padding: 10px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px !important;
+  margin: 4px 0 !important;
+  cursor: grab;
+}
+.gjs-block:hover {
+  border-color: hsl(var(--primary)) !important;
+  background: hsl(var(--primary) / 0.05) !important;
+}
+.gjs-blocks-cs { padding: 0 !important; }
+.gjs-block-label { font-size: 12px; }
+
+/* Layers & Styles containers */
+.gjs-layers-container,
+.gjs-styles-container { padding: 8px; }
+
+/* Asset manager modal */
+.gjs-am-assets-cont { max-height: 300px; overflow-y: auto; }
+.gjs-am-file-uploader {
+  padding: 20px;
+  text-align: center;
+  border: 2px dashed hsl(var(--border));
+  border-radius: 8px;
+  margin: 8px;
+}

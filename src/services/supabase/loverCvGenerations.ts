@@ -44,6 +44,15 @@ export async function insertGeneration(
   return data as LoverCvGeneration
 }
 
+export async function updateGenerationHtml(id: string, htmlContent: string): Promise<void> {
+  const { error } = await supabase
+    .from('lover_cv_generations')
+    .update({ html_content: htmlContent })
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
+}
+
 export async function deleteGeneration(id: string): Promise<void> {
   const { error } = await supabase
     .from('lover_cv_generations')
