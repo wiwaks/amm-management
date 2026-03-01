@@ -132,70 +132,228 @@
 .gjs-four-color,
 .gjs-four-color-h:hover { color: hsl(var(--primary)) !important; }
 
-/* Hide GrapesJS native panel bar (we use our own sidebar) */
+/* Hide GrapesJS native panel bar */
 .gjs-pn-panels { display: none !important; }
 
-/* Right sidebar */
+/* ── Right sidebar ── */
 .gjs-panel-right {
   flex-basis: 280px;
   flex-shrink: 0;
   overflow-y: auto;
   border-left: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
+  background: hsl(var(--muted) / 0.3);
 }
 
-/* Tab switcher - our own tabs rendered as plain HTML buttons */
+/* Tab switcher */
 .gjs-tab-switcher {
   display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  background: hsl(var(--background));
   border-bottom: 1px solid hsl(var(--border));
 }
 .gjs-tab-switcher button {
   flex: 1;
-  padding: 8px 4px;
+  padding: 6px 8px;
   text-align: center;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   cursor: pointer;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: 6px;
   background: transparent;
   color: hsl(var(--muted-foreground));
   transition: all 0.15s;
 }
+.gjs-tab-switcher button:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
 .gjs-tab-switcher button.active {
-  color: hsl(var(--primary));
-  border-bottom-color: hsl(var(--primary));
-  background: hsl(var(--primary) / 0.05);
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+  box-shadow: 0 1px 3px hsl(var(--primary) / 0.3);
 }
 
-/* Blocks */
-.gjs-blocks-container { padding: 8px; }
+/* ── Blocks grid ── */
+#gjs-blocks { padding: 10px; }
+#gjs-blocks .gjs-blocks-c {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 0 !important;
+}
 .gjs-block {
-  width: 100% !important;
+  width: auto !important;
   min-height: auto !important;
-  padding: 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px;
+  padding: 12px 6px !important;
   border: 1px solid hsl(var(--border)) !important;
-  border-radius: 6px !important;
-  margin: 4px 0 !important;
+  border-radius: 8px !important;
+  margin: 0 !important;
+  background: hsl(var(--background)) !important;
   cursor: grab;
+  transition: all 0.15s;
 }
 .gjs-block:hover {
   border-color: hsl(var(--primary)) !important;
-  background: hsl(var(--primary) / 0.05) !important;
+  background: hsl(var(--primary) / 0.06) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px hsl(var(--primary) / 0.1);
 }
-.gjs-blocks-cs { padding: 0 !important; }
-.gjs-block-label { font-size: 12px; }
+.gjs-block svg {
+  opacity: 0.6;
+}
+.gjs-block:hover svg {
+  opacity: 1;
+  color: hsl(var(--primary));
+}
+.gjs-block-label {
+  font-size: 10px !important;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
 
-/* Layers & Styles containers */
-.gjs-layers-container,
-.gjs-styles-container { padding: 8px; }
+/* ── Styles panel ── */
+#gjs-styles { padding: 8px; }
+#gjs-styles .gjs-sm-sector {
+  margin-bottom: 4px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  overflow: hidden;
+  background: hsl(var(--background));
+}
+#gjs-styles .gjs-sm-sector-title {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: hsl(var(--muted) / 0.5);
+  border: none;
+}
+#gjs-styles .gjs-sm-properties {
+  padding: 8px 10px;
+}
+#gjs-styles .gjs-field {
+  border-radius: 6px;
+  border-color: hsl(var(--border));
+  font-size: 12px;
+}
+#gjs-styles .gjs-field:focus-within {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
+}
+/* Selector manager */
+#gjs-styles .gjs-clm-tags {
+  padding: 6px 10px;
+  border-bottom: 1px solid hsl(var(--border));
+  margin-bottom: 4px;
+  font-size: 11px;
+}
 
-/* Asset manager modal */
+/* ── Inline text editor ── */
+.gjs-text-editor-panel {
+  margin: 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  overflow: hidden;
+  background: hsl(var(--background));
+}
+.gjs-text-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: hsl(var(--muted) / 0.5);
+  color: hsl(var(--foreground));
+}
+.gjs-text-editor-input {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  font-size: 12px;
+  font-family: inherit;
+  color: hsl(var(--foreground));
+  resize: vertical;
+  outline: none;
+}
+.gjs-text-editor-input:focus {
+  box-shadow: inset 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+/* Format toolbar */
+.gjs-text-format-bar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.3);
+}
+.gjs-fmt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 5px;
+  background: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.gjs-fmt-btn:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+.gjs-fmt-btn.active {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+/* ── Layers panel ── */
+#gjs-layers { padding: 8px; }
+#gjs-layers .gjs-layer {
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+#gjs-layers .gjs-layer:hover {
+  background: hsl(var(--muted));
+}
+#gjs-layers .gjs-layer.gjs-selected {
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+}
+
+/* ── Asset manager modal ── */
 .gjs-am-assets-cont { max-height: 300px; overflow-y: auto; }
 .gjs-am-file-uploader {
-  padding: 20px;
+  padding: 24px;
   text-align: center;
   border: 2px dashed hsl(var(--border));
-  border-radius: 8px;
-  margin: 8px;
+  border-radius: 10px;
+  margin: 10px;
+  transition: border-color 0.15s;
+}
+.gjs-am-file-uploader:hover {
+  border-color: hsl(var(--primary));
 }
